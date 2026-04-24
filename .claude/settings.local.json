@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ':*)",
+      "Bash(find . -name '*.py' -exec sed -i -e 's/from web_retrieval_toolkit/from webweb/g' -e 's/import web_retrieval_toolkit/import webweb/g' '{}' +)",
+      "Bash(sed -i -e s/web-retrieval-toolkit/webweb/g -e s/web_retrieval_toolkit/webweb/g -e 's/Web Retrieval Toolkit/webweb/g' -e 's/\\\\\"web-retrieval-toolkit\\\\[/\\\\\"webweb\\\\[/g' pyproject.toml)",
+      "Bash(sed -i -e s/web-retrieval-toolkit/webweb/g -e s/web_retrieval_toolkit/webweb/g -e 's/Web Retrieval Toolkit/webweb/g' README.md .env.example)",
+      "Bash(pip install:*)",
+      "Bash(python -c \"import webweb; print\\('OK:', webweb.__all__\\)\")",
+      "Bash(python -m pytest tests/ -v)"
+    ]
+  }
+}
