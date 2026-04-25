@@ -24,7 +24,7 @@ async def read_crawl4ai(url: str) -> WebReadResult:
     try:
         from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
         from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
-    except ImportError as exc:
+    except ImportError:
         error = (
             "crawl4ai is not installed. "
             "Run: pip install 'webweb[crawl4ai]'"
@@ -59,7 +59,9 @@ async def read_crawl4ai(url: str) -> WebReadResult:
                 success=False,
                 error=error,
                 strategy_used="crawl4ai",
-                attempts=[FetchAttempt(strategy="crawl4ai", success=False, error=error, elapsed_ms=elapsed_ms)],
+                attempts=[
+                    FetchAttempt(strategy="crawl4ai", success=False, error=error, elapsed_ms=elapsed_ms)
+                ],
                 fetched_at=fetched_at,
                 elapsed_ms=elapsed_ms,
             )

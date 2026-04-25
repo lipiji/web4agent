@@ -6,8 +6,9 @@ import asyncio
 import logging
 
 from .config import BROWSER_CONCURRENCY, FAST_CONCURRENCY
-from .models import WebReadResult
+from .models import FetchAttempt, WebReadResult
 from .router import read_url
+from .utils import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,6 @@ async def read_many(
                 return await read_url(url, strategy=strategy)
             except Exception as exc:
                 logger.error("Unexpected error fetching %s: %s", url, exc)
-                from .utils import utc_now_iso
-                from .models import FetchAttempt
                 error = f"{type(exc).__name__}: {exc}"
                 return WebReadResult(
                     url=url,

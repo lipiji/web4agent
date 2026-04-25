@@ -16,56 +16,44 @@ No commercial APIs. No rate-limit bills. Self-hostable.
 
 ---
 
-## Installation
-
-### Minimal (httpx + trafilatura only)
+## Install (just one command)
 
 ```bash
 pip install -e .
 ```
 
-### With Playwright (JS rendering)
+That's enough for most users.
 
-```bash
-pip install -e ".[browser]"
-playwright install chromium
-```
+If you need advanced features later:
 
-### With Crawl4AI
-
-```bash
-pip install -e ".[crawl4ai]"
-```
-
-### With FastAPI server
-
-```bash
-pip install -e ".[server]"
-```
-
-### Everything
-
-```bash
-pip install -e ".[all]"
-playwright install chromium
-```
+- JS-rendered pages (Playwright):
+  - `pip install -e ".[browser]"`
+  - `playwright install chromium`
+- Crawl4AI strategy:
+  - `pip install -e ".[crawl4ai]"`
+- FastAPI server:
+  - `pip install -e ".[server]"`
+- Everything:
+  - `pip install -e ".[all]"`
+  - `playwright install chromium`
 
 ---
 
-## Quick Start
+## Quick Start (copy and run)
 
-```python
-import asyncio
-from webweb import read_url, read_many, discover_links
-
-# Single URL — auto strategy
-async def main():
-    result = await read_url("https://en.wikipedia.org/wiki/Web_scraping")
-    print(result.title)
-    print(result.text[:500])
-
-asyncio.run(main())
+```bash
+pip install -e .
+webweb read https://en.wikipedia.org/wiki/Web_scraping
 ```
+
+More commands:
+
+```bash
+webweb many https://example.com https://python.org --concurrency 5
+webweb links https://docs.python.org/3/ --same-domain --max-links 30
+```
+
+> Prefer Python usage? See `examples/example.py`.
 
 ### Agent interface (slim output for LLM context)
 
@@ -161,8 +149,7 @@ Request body for `/read`:
 ## Running Examples
 
 ```bash
-python examples/read_one.py
-python examples/read_many.py
+python examples/example.py
 ```
 
 ---

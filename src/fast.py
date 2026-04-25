@@ -66,7 +66,7 @@ async def read_fast(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
             if "charset=" in content_type:
                 encoding = content_type.split("charset=")[-1].split(";")[0].strip()
             else:
-                encoding = response.apparent_encoding or "utf-8"
+                encoding = getattr(response, "apparent_encoding", None) or "utf-8"
 
             try:
                 html = response.content.decode(encoding, errors="replace")
@@ -119,7 +119,9 @@ async def read_fast(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
                 success=False,
                 error=error,
                 strategy_used="fast",
-                attempts=[FetchAttempt(strategy="fast", success=False, error=error, elapsed_ms=elapsed_ms)],
+                attempts=[
+                    FetchAttempt(strategy="fast", success=False, error=error, elapsed_ms=elapsed_ms)
+                ],
                 fetched_at=fetched_at,
                 elapsed_ms=elapsed_ms,
             )
@@ -133,7 +135,9 @@ async def read_fast(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
                 success=False,
                 error=error,
                 strategy_used="fast",
-                attempts=[FetchAttempt(strategy="fast", success=False, error=error, elapsed_ms=elapsed_ms)],
+                attempts=[
+                    FetchAttempt(strategy="fast", success=False, error=error, elapsed_ms=elapsed_ms)
+                ],
                 fetched_at=fetched_at,
                 elapsed_ms=elapsed_ms,
             )

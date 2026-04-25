@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from contextlib import asynccontextmanager
 from typing import Any
 
 from .config import BROWSER_CONCURRENCY, DEFAULT_TIMEOUT, USER_AGENT
@@ -52,6 +53,22 @@ class _BrowserManager:
                 logger.debug("Playwright browser launched")
         return self._browser
 
+    @asynccontextmanager
+    async def acquire_page(self, user_agent: str):
+        """Acquire a semaphore slot, yield a fresh page, and clean up on exit."""
+        async with self._semaphore:
+            browser = await self._ensure_browser()
+            context = await browser.new_context(
+                user_agent=user_agent,
+                java_script_enabled=True,
+            )
+            page = await context.new_page()
+            try:
+                yield page
+            finally:
+                await page.close()
+                await context.close()
+
     async def close(self) -> None:
         async with self._lock:
             if self._browser:
@@ -88,122 +105,117 @@ async def read_browser(
     start = time.monotonic()
     fetched_at = utc_now_iso()
 
-    async with _manager._semaphore:
-        try:
-            browser = await _manager._ensure_browser()
-        except RuntimeError as exc:
-            error = str(exc)
-            return WebReadResult(
-                url=url,
-                success=False,
-                error=error,
-                strategy_used="browser",
-                attempts=[FetchAttempt(strategy="browser", success=False, error=error)],
-                fetched_at=fetched_at,
-            )
-
-        context = await browser.new_context(
-            user_agent=USER_AGENT,
-            java_script_enabled=True,
-        )
-        page = await context.new_page()
-
-        try:
-            response = await page.goto(
-                url,
-                wait_until=wait_until,
-                timeout=timeout * 1000,
-            )
-            status_code = response.status if response else None
-
-            # Scroll to bottom to trigger lazy loading
-            await page.evaluate(
-                """() => {
-                    return new Promise((resolve) => {
-                        let distance = 0;
-                        const step = 300;
-                        const timer = setInterval(() => {
-                            window.scrollBy(0, step);
-                            distance += step;
-                            if (distance >= document.body.scrollHeight) {
-                                clearInterval(timer);
-                                resolve();
-                            }
-                        }, 80);
-                    });
-                }"""
-            )
-
-            # Give lazy content a moment to render
-            await asyncio.sleep(0.5)
-
-            html = await page.content()
-            final_url = page.url
-
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-
-            # Extract content
+    try:
+        async with _manager.acquire_page(USER_AGENT) as page:
             try:
-                import trafilatura
-                text = trafilatura.extract(html, include_links=False)
-                meta = trafilatura.extract_metadata(html)
-                title = meta.title if meta else None
-            except Exception:
-                text = None
-                title = None
+                response = await page.goto(
+                    url,
+                    wait_until=wait_until,
+                    timeout=timeout * 1000,
+                )
+                status_code = response.status if response else None
 
-            if not text:
-                text = extract_text_bs4(html)
-            if not title:
-                title = extract_title_bs4(html)
+                # Scroll to bottom to trigger lazy loading
+                await page.evaluate(
+                    """() => {
+                        return new Promise((resolve) => {
+                            let distance = 0;
+                            const step = 300;
+                            const timer = setInterval(() => {
+                                window.scrollBy(0, step);
+                                distance += step;
+                                if (distance >= document.body.scrollHeight) {
+                                    clearInterval(timer);
+                                    resolve();
+                                }
+                            }, 80);
+                        });
+                    }"""
+                )
 
-            markdown = html_to_markdown(html)
+                # Give lazy content a moment to render
+                await asyncio.sleep(0.5)
 
-            screenshot_b64: str | None = None
-            if screenshot:
-                import base64
-                png = await page.screenshot(full_page=True)
-                screenshot_b64 = base64.b64encode(png).decode()
+                html = await page.content()
+                final_url = page.url
 
-            success = bool(text) and (status_code is None or status_code < 400)
-            attempt = FetchAttempt(
-                strategy="browser",
-                success=success,
-                status_code=status_code,
-                elapsed_ms=elapsed_ms,
-            )
+                elapsed_ms = int((time.monotonic() - start) * 1000)
 
-            result = WebReadResult(
-                url=url,
-                final_url=final_url,
-                title=title,
-                text=text,
-                markdown=markdown,
-                html=html,
-                status_code=status_code,
-                success=success,
-                strategy_used="browser",
-                attempts=[attempt],
-                fetched_at=fetched_at,
-                elapsed_ms=elapsed_ms,
-            )
-            if screenshot_b64:
-                result.metadata["screenshot_b64"] = screenshot_b64
-            return result
+                # Extract content
+                try:
+                    import trafilatura
+                    text = trafilatura.extract(html, include_links=False)
+                    meta = trafilatura.extract_metadata(html)
+                    title = meta.title if meta else None
+                except Exception:
+                    text = None
+                    title = None
 
-        except Exception as exc:
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-            error = f"{type(exc).__name__}: {exc}"
-            logger.warning("read_browser error %s: %s", url, error)
-            return WebReadResult(
-                url=url,
-                success=False,
-                error=error,
-                strategy_used="browser",
-                attempts=[FetchAttempt(strategy="browser", success=False, error=error, elapsed_ms=elapsed_ms)],
-                fetched_at=fetched_at,
-                elapsed_ms=elapsed_ms,
-            )
-        finally:
-            await page.close()
-            await context.close()
+                if not text:
+                    text = extract_text_bs4(html)
+                if not title:
+                    title = extract_title_bs4(html)
+
+                markdown = html_to_markdown(html)
+
+                metadata: dict = {}
+                if screenshot:
+                    import base64
+                    png = await page.screenshot(full_page=True)
+                    metadata["screenshot_b64"] = base64.b64encode(png).decode()
+
+                success = bool(text) and (status_code is None or status_code < 400)
+                attempt = FetchAttempt(
+                    strategy="browser",
+                    success=success,
+                    status_code=status_code,
+                    elapsed_ms=elapsed_ms,
+                )
+
+                return WebReadResult(
+                    url=url,
+                    final_url=final_url,
+                    title=title,
+                    text=text,
+                    markdown=markdown,
+                    html=html,
+                    status_code=status_code,
+                    success=success,
+                    strategy_used="browser",
+                    attempts=[attempt],
+                    fetched_at=fetched_at,
+                    elapsed_ms=elapsed_ms,
+                    metadata=metadata,
+                )
+
+            except Exception as exc:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                error = f"{type(exc).__name__}: {exc}"
+                logger.warning("read_browser error %s: %s", url, error)
+                return WebReadResult(
+                    url=url,
+                    success=False,
+                    error=error,
+                    strategy_used="browser",
+                    attempts=[
+                        FetchAttempt(
+                            strategy="browser",
+                            success=False,
+                            error=error,
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
+                    fetched_at=fetched_at,
+                    elapsed_ms=elapsed_ms,
+                )
+
+    except RuntimeError as exc:
+        error = str(exc)
+        return WebReadResult(
+            url=url,
+            success=False,
+            error=error,
+            strategy_used="browser",
+            attempts=[FetchAttempt(strategy="browser", success=False, error=error)],
+            fetched_at=fetched_at,
+        )
