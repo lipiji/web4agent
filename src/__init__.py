@@ -8,10 +8,12 @@ from .agent import agent_read_url, agent_read_urls
 from .batch import read_many
 from .browser import read_browser
 from .crawl4ai_reader import read_crawl4ai
+from .ddg_reader import read_ddg
 from .fast import read_fast
 from .links import discover_links
 from .models import FetchAttempt, WebReadResult
 from .router import read_url
+from .wayback_reader import read_wayback
 
 __all__ = [
     "read_url",
@@ -19,6 +21,8 @@ __all__ = [
     "read_fast",
     "read_browser",
     "read_crawl4ai",
+    "read_wayback",
+    "read_ddg",
     "discover_links",
     "agent_read_url",
     "agent_read_urls",

@@ -1,19 +1,21 @@
-"""Strategy router: auto-degradation across fast -> crawl4ai -> browser."""
+"""Strategy router: auto-degradation across fast -> crawl4ai -> browser -> wayback -> ddg."""
 
 from __future__ import annotations
 
 import logging
 
 from .browser import read_browser
-from .config import MIN_TEXT_LENGTH
+from .config import MIN_TEXT_LENGTH, USE_EXTENDED_FALLBACKS
 from .crawl4ai_reader import read_crawl4ai
+from .ddg_reader import read_ddg
 from .fast import read_fast
 from .models import WebReadResult
 from .utils import looks_like_js_page
+from .wayback_reader import read_wayback
 
 logger = logging.getLogger(__name__)
 
-_VALID_STRATEGIES = {"fast", "browser", "crawl4ai", "auto"}
+_VALID_STRATEGIES = {"fast", "browser", "crawl4ai", "wayback", "ddg", "auto"}
 
 
 def _should_degrade(result: WebReadResult) -> bool:
@@ -46,7 +48,10 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
     fast      – httpx only
     crawl4ai  – Crawl4AI only
     browser   – Playwright only
-    auto      – fast → crawl4ai → browser (degrades on failure/empty content)
+    wayback   – archive.org Wayback Machine only
+    ddg       – DuckDuckGo search snippet only
+    auto      – fast → crawl4ai → browser → wayback → ddg (degrades on failure/empty content)
+                Set WRT_EXTENDED_FALLBACKS=false to stop at browser.
     """
     if strategy not in _VALID_STRATEGIES:
         raise ValueError(f"Unknown strategy {strategy!r}. Choose from {_VALID_STRATEGIES}.")
@@ -59,6 +64,12 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
 
     if strategy == "browser":
         return await read_browser(url)
+
+    if strategy == "wayback":
+        return await read_wayback(url)
+
+    if strategy == "ddg":
+        return await read_ddg(url)
 
     # ── auto ──────────────────────────────────────────────────────────────────
     logger.debug("auto strategy: trying fast for %s", url)
@@ -79,17 +90,39 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
     if not _should_degrade(c4ai_result):
         return result
 
-    logger.debug(
-        "auto strategy: crawl4ai insufficient, trying browser for %s", url
-    )
+    logger.debug("auto strategy: crawl4ai insufficient, trying browser for %s", url)
     browser_result = await read_browser(url)
     result = _merge_attempts(result, browser_result)
 
-    # Return the best available result (browser last, so it wins if successful)
-    if browser_result.success:
+    if not _should_degrade(browser_result):
         return result
 
-    # All strategies failed — return merged result with original error preserved
+    if not USE_EXTENDED_FALLBACKS:
+        if result.success:
+            return result
+        return result.model_copy(
+            update={
+                "success": False,
+                "error": result.error or c4ai_result.error or browser_result.error or "All strategies failed",
+            }
+        )
+
+    # ── extended fallbacks ────────────────────────────────────────────────────
+    logger.debug("auto strategy: browser insufficient, trying wayback for %s", url)
+    wayback_result = await read_wayback(url)
+    result = _merge_attempts(result, wayback_result)
+
+    if not _should_degrade(wayback_result):
+        return result
+
+    logger.debug("auto strategy: wayback unavailable, trying ddg for %s", url)
+    ddg_result = await read_ddg(url)
+    result = _merge_attempts(result, ddg_result)
+
+    # ddg snippets are intentionally short; accept any successful result
+    if ddg_result.success:
+        return result
+
     return result.model_copy(
         update={
             "success": False,
@@ -97,6 +130,8 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
                 result.error
                 or c4ai_result.error
                 or browser_result.error
+                or wayback_result.error
+                or ddg_result.error
                 or "All strategies failed"
             ),
         }

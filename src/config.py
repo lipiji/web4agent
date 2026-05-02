@@ -19,3 +19,6 @@ USER_AGENT: str = os.environ.get(
 
 # Max content length returned to agent context (characters)
 AGENT_MAX_CONTENT_CHARS: int = int(os.environ.get("WRT_AGENT_MAX_CONTENT_CHARS", "8000"))
+
+# Whether to use Wayback Machine + DuckDuckGo as final fallbacks in auto mode
+USE_EXTENDED_FALLBACKS: bool = os.environ.get("WRT_EXTENDED_FALLBACKS", "true").lower() == "true"
