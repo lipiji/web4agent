@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from webweb.links import _is_valid_href, _normalize, discover_links
+from web4agent.links import _is_valid_href, _normalize, discover_links
 
 
 # ── _is_valid_href ─────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ async def test_discover_links_same_domain():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=_mock_response(SAMPLE_HTML))
 
-    with patch("webweb.links.httpx.AsyncClient", return_value=mock_client):
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
         links = await discover_links("https://example.com/", same_domain=True)
 
     # /page1, /page2 should be included (same domain)
@@ -138,7 +138,7 @@ async def test_discover_links_include_external():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=_mock_response(SAMPLE_HTML))
 
-    with patch("webweb.links.httpx.AsyncClient", return_value=mock_client):
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
         links = await discover_links("https://example.com/", same_domain=False)
 
     assert any("other.com" in l for l in links)
@@ -151,7 +151,7 @@ async def test_discover_links_deduplication():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=_mock_response(SAMPLE_HTML))
 
-    with patch("webweb.links.httpx.AsyncClient", return_value=mock_client):
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
         links = await discover_links("https://example.com/", same_domain=True)
 
     # /page1 appears twice in HTML but should appear once in results
@@ -166,7 +166,7 @@ async def test_discover_links_filters_invalid():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=_mock_response(SAMPLE_HTML))
 
-    with patch("webweb.links.httpx.AsyncClient", return_value=mock_client):
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
         links = await discover_links("https://example.com/", same_domain=False)
 
     for link in links:
@@ -185,7 +185,7 @@ async def test_discover_links_max_links():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=_mock_response(html))
 
-    with patch("webweb.links.httpx.AsyncClient", return_value=mock_client):
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
         links = await discover_links("https://example.com/", max_links=5)
 
     assert len(links) <= 5
@@ -198,7 +198,7 @@ async def test_discover_links_fetch_error_returns_empty():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(side_effect=Exception("network error"))
 
-    with patch("webweb.links.httpx.AsyncClient", return_value=mock_client):
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
         links = await discover_links("https://example.com/")
 
     assert links == []

@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from webweb.models import FetchAttempt, WebReadResult
-from webweb.utils import utc_now_iso
+from web4agent.models import FetchAttempt, WebReadResult
+from web4agent.utils import utc_now_iso
 
 
 def _ok(url: str, text: str = "A" * 400) -> WebReadResult:
@@ -40,8 +40,8 @@ class TestReadMany:
             await asyncio.sleep(0)  # yield
             return _ok(url)
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             results = await read_many(urls)
 
         assert [r.url for r in results] == urls
@@ -55,8 +55,8 @@ class TestReadMany:
                 return _fail(url, error="network error")
             return _ok(url)
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             results = await read_many(urls)
 
         assert results[0].success is True
@@ -72,8 +72,8 @@ class TestReadMany:
             call_count[url] = call_count.get(url, 0) + 1
             return _ok(url)
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             results = await read_many(urls)
 
         # a.com fetched only once
@@ -90,8 +90,8 @@ class TestReadMany:
         async def fake_read_url(url, strategy="auto"):
             return _ok(url)
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             results = await read_many(urls)
 
         assert results[0].url == results[1].url
@@ -111,8 +111,8 @@ class TestReadMany:
 
         urls = [f"https://site{i}.com" for i in range(10)]
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             await read_many(urls, concurrency=3)
 
         assert max(max_active) <= 3
@@ -127,8 +127,8 @@ class TestReadMany:
                 raise RuntimeError("unexpected boom")
             return _ok(url)
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             results = await read_many(urls)
 
         assert results[0].success is True
@@ -137,7 +137,7 @@ class TestReadMany:
 
     @pytest.mark.asyncio
     async def test_empty_list_returns_empty(self):
-        from webweb.batch import read_many
+        from web4agent.batch import read_many
         results = await read_many([])
         assert results == []
 
@@ -149,8 +149,8 @@ class TestReadMany:
             received_strategies.append(strategy)
             return _ok(url)
 
-        with patch("webweb.batch.read_url", side_effect=fake_read_url):
-            from webweb.batch import read_many
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
             await read_many(["https://a.com", "https://b.com"], strategy="fast")
 
         assert all(s == "fast" for s in received_strategies)
@@ -158,6 +158,6 @@ class TestReadMany:
     @pytest.mark.asyncio
     async def test_default_concurrency_by_strategy(self):
         """Default concurrency should differ by strategy."""
-        from webweb.batch import _STRATEGY_DEFAULT_CONCURRENCY
+        from web4agent.batch import _STRATEGY_DEFAULT_CONCURRENCY
         assert _STRATEGY_DEFAULT_CONCURRENCY["fast"] >= 10
         assert _STRATEGY_DEFAULT_CONCURRENCY["browser"] <= 5

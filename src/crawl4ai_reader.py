@@ -27,7 +27,7 @@ async def read_crawl4ai(url: str) -> WebReadResult:
     except ImportError:
         error = (
             "crawl4ai is not installed. "
-            "Run: pip install 'webweb[crawl4ai]'"
+            "Run: pip install 'web4agent[crawl4ai]'"
         )
         logger.warning(error)
         return WebReadResult(

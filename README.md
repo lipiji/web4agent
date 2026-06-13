@@ -1,4 +1,4 @@
-# webweb
+# web4agent
 
 > Free, open-source, async-first web scraping toolkit for LLM agents.  
 > No commercial APIs. No rate-limit bills. Self-hostable.
@@ -26,25 +26,33 @@
 **Minimal** (httpx + trafilatura, covers most use cases):
 
 ```bash
-pip install -e .
+pip install web4agent
 ```
 
 **With optional extras:**
 
 ```bash
 # Playwright (JS-rendered pages)
-pip install -e ".[browser]"
+pip install "web4agent[browser]"
 playwright install chromium
 
 # Crawl4AI strategy
-pip install -e ".[crawl4ai]"
+pip install "web4agent[crawl4ai]"
 
 # FastAPI server
-pip install -e ".[server]"
+pip install "web4agent[server]"
 
 # Everything
-pip install -e ".[all]"
+pip install "web4agent[all]"
 playwright install chromium
+```
+
+**From source (development):**
+
+```bash
+git clone https://github.com/lipiji/web4agent
+cd web4agent
+pip install -e ".[dev]"
 ```
 
 ---
@@ -55,20 +63,20 @@ playwright install chromium
 
 ```bash
 # Fetch a single page
-webweb read https://en.wikipedia.org/wiki/Web_scraping
+web4agent read https://en.wikipedia.org/wiki/Web_scraping
 
 # Batch fetch
-webweb many https://example.com https://python.org --concurrency 5
+web4agent many https://example.com https://python.org --concurrency 5
 
 # Extract links
-webweb links https://docs.python.org/3/ --same-domain --max-links 30
+web4agent links https://docs.python.org/3/ --same-domain --max-links 30
 ```
 
 ### Python
 
 ```python
 import asyncio
-from webweb import read_url, read_many, discover_links
+from web4agent import read_url, read_many, discover_links
 
 async def main():
     # Single URL — auto strategy (fast → crawl4ai → browser)
@@ -96,7 +104,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from webweb import agent_read_url, agent_read_urls
+from web4agent import agent_read_url, agent_read_urls
 
 async def main():
     # Single — returns {"url", "title", "content", "success", "strategy_used", "error"}
@@ -180,7 +188,7 @@ Set via environment variables (or a `.env` file):
 
 ```bash
 pip install -e ".[server]"
-uvicorn webweb.server:app --host 0.0.0.0 --port 8000
+uvicorn web4agent.server:app --host 0.0.0.0 --port 8000
 ```
 
 | Method | Path | Body |

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from webweb.models import WebReadResult
+from web4agent.models import WebReadResult
 
 
 RICH_HTML = """
@@ -53,8 +53,8 @@ class TestReadBrowser:
         mock_browser, _, _ = _make_playwright_mocks()
 
         # Patch the manager's _ensure_browser directly
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         assert isinstance(result, WebReadResult)
@@ -63,8 +63,8 @@ class TestReadBrowser:
     async def test_strategy_used_is_browser(self):
         mock_browser, _, _ = _make_playwright_mocks()
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         assert result.strategy_used == "browser"
@@ -73,8 +73,8 @@ class TestReadBrowser:
     async def test_title_extracted(self):
         mock_browser, _, _ = _make_playwright_mocks()
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         # trafilatura may prefer <h1> over <title>; either is valid
@@ -85,8 +85,8 @@ class TestReadBrowser:
     async def test_html_stored(self):
         mock_browser, _, _ = _make_playwright_mocks()
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         assert result.html is not None
@@ -96,8 +96,8 @@ class TestReadBrowser:
     async def test_attempt_recorded(self):
         mock_browser, _, _ = _make_playwright_mocks()
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         assert len(result.attempts) == 1
@@ -107,8 +107,8 @@ class TestReadBrowser:
     async def test_page_closed_after_fetch(self):
         mock_browser, mock_context, mock_page = _make_playwright_mocks()
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             await read_browser("https://example.com/")
 
         mock_page.close.assert_called_once()
@@ -119,8 +119,8 @@ class TestReadBrowser:
         mock_browser, mock_context, mock_page = _make_playwright_mocks()
         mock_page.goto = AsyncMock(side_effect=Exception("navigation failed"))
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         mock_page.close.assert_called_once()
@@ -132,9 +132,9 @@ class TestReadBrowser:
         import sys
 
         # Simulate playwright not installed
-        with patch("webweb.browser._manager._ensure_browser",
+        with patch("web4agent.browser._manager._ensure_browser",
                    AsyncMock(side_effect=RuntimeError("Playwright is not installed"))):
-            from webweb.browser import read_browser
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         assert result.success is False
@@ -146,8 +146,8 @@ class TestReadBrowser:
         mock_browser, _, mock_page = _make_playwright_mocks()
         mock_page.goto = AsyncMock(side_effect=Exception("net::ERR_CONNECTION_REFUSED"))
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             result = await read_browser("https://example.com/")
 
         assert result.success is False
@@ -159,8 +159,8 @@ class TestReadBrowser:
     async def test_auto_scroll_called(self):
         mock_browser, _, mock_page = _make_playwright_mocks()
 
-        with patch("webweb.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
-            from webweb.browser import read_browser
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
             await read_browser("https://example.com/")
 
         # evaluate should have been called for the scroll script

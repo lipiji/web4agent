@@ -1,12 +1,12 @@
 """
-webweb 使用示例
+web4agent 使用示例
 运行：python example.py
 """
 
 import asyncio
 import json
 
-from webweb import (
+from web4agent import (
     agent_read_url,
     agent_read_urls,
     discover_links,

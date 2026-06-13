@@ -1,7 +1,7 @@
 """Tests for Pydantic models."""
 
 import pytest
-from webweb.models import FetchAttempt, WebReadResult
+from web4agent.models import FetchAttempt, WebReadResult
 
 
 # ── FetchAttempt ───────────────────────────────────────────────────────────────

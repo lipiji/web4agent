@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from webweb.fast import read_fast
-from webweb.models import WebReadResult
+from web4agent.fast import read_fast
+from web4agent.models import WebReadResult
 
 
 def _make_httpx_response(
@@ -31,7 +31,7 @@ def _patch_client(response):
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=response)
-    return patch("webweb.fast.httpx.AsyncClient", return_value=mock_client)
+    return patch("web4agent.fast.httpx.AsyncClient", return_value=mock_client)
 
 
 RICH_HTML = """
@@ -133,7 +133,7 @@ class TestReadFast:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
 
-        with patch("webweb.fast.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.fast.httpx.AsyncClient", return_value=mock_client):
             result = await read_fast("https://example.com/")
 
         assert result.success is False
@@ -149,7 +149,7 @@ class TestReadFast:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=Exception("Connection refused"))
 
-        with patch("webweb.fast.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.fast.httpx.AsyncClient", return_value=mock_client):
             result = await read_fast("https://example.com/")
 
         assert result.success is False

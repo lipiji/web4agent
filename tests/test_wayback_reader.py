@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from webweb.models import WebReadResult
-from webweb.wayback_reader import _find_snapshot, read_wayback
+from web4agent.models import WebReadResult
+from web4agent.wayback_reader import _find_snapshot, read_wayback
 
 
 # ── fixtures & helpers ──────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ def _patch_wayback_client(cdx_response, fetch_response=None):
     else:
         mock_client.get = AsyncMock(return_value=cdx_response)
 
-    return patch("webweb.wayback_reader.httpx.AsyncClient", return_value=mock_client)
+    return patch("web4agent.wayback_reader.httpx.AsyncClient", return_value=mock_client)
 
 
 # ── _find_snapshot unit tests ──────────────────────────────────────────────────
@@ -309,7 +309,7 @@ class TestReadWayback:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
 
-        with patch("webweb.wayback_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.wayback_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_wayback("http://example.com/")
 
         assert result.success is False
@@ -325,7 +325,7 @@ class TestReadWayback:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
 
-        with patch("webweb.wayback_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.wayback_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_wayback("http://example.com/")
 
         assert result.success is False
@@ -339,7 +339,7 @@ class TestReadWayback:
         mock_client.__aenter__ = AsyncMock(side_effect=RuntimeError("internal detail"))
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("webweb.wayback_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.wayback_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_wayback("http://example.com/")
 
         # Error should be just the type name, not the full message (to avoid leaking details)

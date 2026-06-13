@@ -8,13 +8,13 @@ from urllib.parse import quote
 import httpx
 import pytest
 
-from webweb.ddg_reader import (
+from web4agent.ddg_reader import (
     _extract_href_host,
     _norm_host,
     _parse_ddg_results,
     read_ddg,
 )
-from webweb.models import WebReadResult
+from web4agent.models import WebReadResult
 
 
 # ── DDG HTML fixtures ──────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ def _mock_ddg_client(html: str, status_code: int = 200):
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.post = AsyncMock(return_value=resp)
 
-    return patch("webweb.ddg_reader.httpx.AsyncClient", return_value=mock_client)
+    return patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client)
 
 
 # ── _norm_host unit tests ──────────────────────────────────────────────────────
@@ -319,7 +319,7 @@ class TestReadDdg:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
 
-        with patch("webweb.ddg_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_ddg("https://example.com/")
 
         assert result.success is False
@@ -335,7 +335,7 @@ class TestReadDdg:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
 
-        with patch("webweb.ddg_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_ddg("https://example.com/")
 
         assert result.success is False
@@ -347,7 +347,7 @@ class TestReadDdg:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(side_effect=RuntimeError("secret internal detail"))
 
-        with patch("webweb.ddg_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_ddg("https://example.com/")
 
         # Should not leak internal error messages to agent context
@@ -402,7 +402,7 @@ class TestReadDdg:
         resp.text = _DDG_HTML_ONE_RESULT
         mock_client.post = AsyncMock(return_value=resp)
 
-        with patch("webweb.ddg_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client):
             await read_ddg("https://example.com/")
 
         mock_client.post.assert_called_once()
@@ -420,7 +420,7 @@ class TestReadDdg:
         resp.text = _DDG_HTML_ONE_RESULT
         mock_client.post = AsyncMock(return_value=resp)
 
-        with patch("webweb.ddg_reader.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client):
             await read_ddg("https://example.com/target")
 
         call_kwargs = mock_client.post.call_args[1]

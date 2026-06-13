@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from webweb.models import FetchAttempt, WebReadResult
-from webweb.router import _merge_attempts, _should_degrade
+from web4agent.models import FetchAttempt, WebReadResult
+from web4agent.router import _merge_attempts, _should_degrade
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ class TestShouldDegrade:
         assert _should_degrade(r) is False
 
     def test_boundary_text_length(self):
-        from webweb.config import MIN_TEXT_LENGTH
+        from web4agent.config import MIN_TEXT_LENGTH
         r = _make_result(text="A" * MIN_TEXT_LENGTH, success=True, status_code=200)
         assert _should_degrade(r) is False
         r2 = _make_result(text="A" * (MIN_TEXT_LENGTH - 1), success=True, status_code=200)
@@ -111,30 +111,30 @@ class TestReadUrlDispatch:
     @pytest.mark.asyncio
     async def test_fast_strategy_calls_read_fast(self):
         good = _make_result(strategy_used="fast")
-        with patch("webweb.router.read_fast", AsyncMock(return_value=good)) as mock_fast:
-            from webweb.router import read_url
+        with patch("web4agent.router.read_fast", AsyncMock(return_value=good)) as mock_fast:
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="fast")
         mock_fast.assert_called_once_with("https://example.com")
 
     @pytest.mark.asyncio
     async def test_browser_strategy_calls_read_browser(self):
         good = _make_result(strategy_used="browser")
-        with patch("webweb.router.read_browser", AsyncMock(return_value=good)) as mock_b:
-            from webweb.router import read_url
+        with patch("web4agent.router.read_browser", AsyncMock(return_value=good)) as mock_b:
+            from web4agent.router import read_url
             await read_url("https://example.com", strategy="browser")
         mock_b.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_crawl4ai_strategy_calls_read_crawl4ai(self):
         good = _make_result(strategy_used="crawl4ai")
-        with patch("webweb.router.read_crawl4ai", AsyncMock(return_value=good)) as mock_c:
-            from webweb.router import read_url
+        with patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=good)) as mock_c:
+            from web4agent.router import read_url
             await read_url("https://example.com", strategy="crawl4ai")
         mock_c.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_invalid_strategy_raises(self):
-        from webweb.router import read_url
+        from web4agent.router import read_url
         with pytest.raises(ValueError, match="Unknown strategy"):
             await read_url("https://example.com", strategy="invalid")
 
@@ -146,11 +146,11 @@ class TestAutoDegradation:
     async def test_auto_stops_at_fast_when_good(self):
         good = _make_result(text="A" * 400, success=True, status_code=200)
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=good)) as mock_fast,
-            patch("webweb.router.read_crawl4ai", AsyncMock()) as mock_c4ai,
-            patch("webweb.router.read_browser", AsyncMock()) as mock_browser,
+            patch("web4agent.router.read_fast", AsyncMock(return_value=good)) as mock_fast,
+            patch("web4agent.router.read_crawl4ai", AsyncMock()) as mock_c4ai,
+            patch("web4agent.router.read_browser", AsyncMock()) as mock_browser,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
 
         mock_fast.assert_called_once()
@@ -167,11 +167,11 @@ class TestAutoDegradation:
             FetchAttempt(strategy="crawl4ai", success=True),
         ])
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=short)),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=good_c4ai)) as mock_c4ai,
-            patch("webweb.router.read_browser", AsyncMock()) as mock_browser,
+            patch("web4agent.router.read_fast", AsyncMock(return_value=short)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=good_c4ai)) as mock_c4ai,
+            patch("web4agent.router.read_browser", AsyncMock()) as mock_browser,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
 
         mock_c4ai.assert_called_once()
@@ -191,11 +191,11 @@ class TestAutoDegradation:
             FetchAttempt(strategy="browser", success=True),
         ])
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=fail_c4ai)),
-            patch("webweb.router.read_browser", AsyncMock(return_value=good_browser)),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=fail_c4ai)),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=good_browser)),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
 
         assert result.success is True
@@ -207,13 +207,13 @@ class TestAutoDegradation:
             FetchAttempt(strategy="fast", success=False, error="oops"),
         ])
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_browser", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_ddg", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=fail)),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
 
         assert result.success is False
@@ -226,22 +226,22 @@ class TestNewStrategiesDispatch:
     @pytest.mark.asyncio
     async def test_wayback_strategy_calls_read_wayback(self):
         good = _make_result(strategy_used="wayback")
-        with patch("webweb.router.read_wayback", AsyncMock(return_value=good)) as mock_wb:
-            from webweb.router import read_url
+        with patch("web4agent.router.read_wayback", AsyncMock(return_value=good)) as mock_wb:
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="wayback")
         mock_wb.assert_called_once_with("https://example.com")
 
     @pytest.mark.asyncio
     async def test_ddg_strategy_calls_read_ddg(self):
         good = _make_result(strategy_used="ddg")
-        with patch("webweb.router.read_ddg", AsyncMock(return_value=good)) as mock_ddg:
-            from webweb.router import read_url
+        with patch("web4agent.router.read_ddg", AsyncMock(return_value=good)) as mock_ddg:
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="ddg")
         mock_ddg.assert_called_once_with("https://example.com")
 
     @pytest.mark.asyncio
     async def test_all_six_strategies_are_valid(self):
-        from webweb.router import _VALID_STRATEGIES
+        from web4agent.router import _VALID_STRATEGIES
         for strategy in ("fast", "crawl4ai", "browser", "wayback", "ddg", "auto"):
             assert strategy in _VALID_STRATEGIES
 
@@ -280,13 +280,13 @@ class TestExtendedFallbackChain:
     async def test_wayback_called_when_browser_fails(self):
         good_wayback = self._make_good("wayback")
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=good_wayback)) as mock_wb,
-            patch("webweb.router.read_ddg", AsyncMock()) as mock_ddg,
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=good_wayback)) as mock_wb,
+            patch("web4agent.router.read_ddg", AsyncMock()) as mock_ddg,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         mock_wb.assert_called_once()
         mock_ddg.assert_not_called()
@@ -297,13 +297,13 @@ class TestExtendedFallbackChain:
     async def test_wayback_called_when_browser_content_degraded(self):
         good_wayback = self._make_good("wayback")
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=self._make_degraded("browser"))),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=good_wayback)) as mock_wb,
-            patch("webweb.router.read_ddg", AsyncMock()),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=self._make_degraded("browser"))),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=good_wayback)) as mock_wb,
+            patch("web4agent.router.read_ddg", AsyncMock()),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             await read_url("https://example.com", strategy="auto")
         mock_wb.assert_called_once()
 
@@ -311,13 +311,13 @@ class TestExtendedFallbackChain:
     async def test_ddg_called_when_wayback_fails(self):
         good_ddg = self._make_good("ddg")
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=self._make_fail("wayback"))),
-            patch("webweb.router.read_ddg", AsyncMock(return_value=good_ddg)) as mock_ddg,
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=self._make_fail("wayback"))),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=good_ddg)) as mock_ddg,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         mock_ddg.assert_called_once()
         assert result.success is True
@@ -327,13 +327,13 @@ class TestExtendedFallbackChain:
     async def test_ddg_called_when_wayback_content_degraded(self):
         good_ddg = self._make_good("ddg")
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=self._make_degraded("wayback"))),
-            patch("webweb.router.read_ddg", AsyncMock(return_value=good_ddg)) as mock_ddg,
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=self._make_degraded("wayback"))),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=good_ddg)) as mock_ddg,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         mock_ddg.assert_called_once()
         assert result.success is True
@@ -348,13 +348,13 @@ class TestExtendedFallbackChain:
             attempts=[FetchAttempt(strategy="ddg", success=True)],
         )
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=self._make_fail("wayback"))),
-            patch("webweb.router.read_ddg", AsyncMock(return_value=short_ddg)),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=self._make_fail("browser"))),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=self._make_fail("wayback"))),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=short_ddg)),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         assert result.success is True
         assert result.strategy_used == "ddg"
@@ -363,13 +363,13 @@ class TestExtendedFallbackChain:
     async def test_all_five_fail_returns_failure(self):
         fail = self._make_fail("any")
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_browser", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_ddg", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=fail)),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         assert result.success is False
         assert result.error is not None
@@ -383,13 +383,13 @@ class TestExtendedFallbackChain:
             attempts=[FetchAttempt(strategy="s", success=False)],
         )
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_browser", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_wayback", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_ddg", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=fail)),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         assert len(result.attempts) == 5
 
@@ -398,13 +398,13 @@ class TestExtendedFallbackChain:
         """Browser with good content should short-circuit without calling wayback."""
         good_browser = self._make_good("browser")
         with (
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=good_browser)),
-            patch("webweb.router.read_wayback", AsyncMock()) as mock_wb,
-            patch("webweb.router.read_ddg", AsyncMock()) as mock_ddg,
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=good_browser)),
+            patch("web4agent.router.read_wayback", AsyncMock()) as mock_wb,
+            patch("web4agent.router.read_ddg", AsyncMock()) as mock_ddg,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         mock_wb.assert_not_called()
         mock_ddg.assert_not_called()
@@ -435,14 +435,14 @@ class TestExtendedFallbacksDisabled:
     async def test_wayback_not_called_when_extended_disabled(self):
         fail = self._make_fail("browser")
         with (
-            patch("webweb.router.USE_EXTENDED_FALLBACKS", False),
-            patch("webweb.router.read_fast", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_browser", AsyncMock(return_value=fail)),
-            patch("webweb.router.read_wayback", AsyncMock()) as mock_wb,
-            patch("webweb.router.read_ddg", AsyncMock()) as mock_ddg,
+            patch("web4agent.router.USE_EXTENDED_FALLBACKS", False),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=fail)),
+            patch("web4agent.router.read_wayback", AsyncMock()) as mock_wb,
+            patch("web4agent.router.read_ddg", AsyncMock()) as mock_ddg,
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         mock_wb.assert_not_called()
         mock_ddg.assert_not_called()
@@ -459,14 +459,14 @@ class TestExtendedFallbacksDisabled:
             attempts=[FetchAttempt(strategy="browser", success=True)],
         )
         with (
-            patch("webweb.router.USE_EXTENDED_FALLBACKS", False),
-            patch("webweb.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
-            patch("webweb.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
-            patch("webweb.router.read_browser", AsyncMock(return_value=partial)),
-            patch("webweb.router.read_wayback", AsyncMock()),
-            patch("webweb.router.read_ddg", AsyncMock()),
+            patch("web4agent.router.USE_EXTENDED_FALLBACKS", False),
+            patch("web4agent.router.read_fast", AsyncMock(return_value=self._make_fail("fast"))),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=self._make_fail("crawl4ai"))),
+            patch("web4agent.router.read_browser", AsyncMock(return_value=partial)),
+            patch("web4agent.router.read_wayback", AsyncMock()),
+            patch("web4agent.router.read_ddg", AsyncMock()),
         ):
-            from webweb.router import read_url
+            from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="auto")
         # Should return the partial success rather than failing
         assert result.success is True

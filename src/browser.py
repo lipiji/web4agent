@@ -38,7 +38,7 @@ class _BrowserManager:
                 except ImportError as exc:
                     raise RuntimeError(
                         "Playwright is not installed. "
-                        "Run: pip install 'webweb[browser]' && playwright install chromium"
+                        "Run: pip install 'web4agent[browser]' && playwright install chromium"
                     ) from exc
 
                 self._playwright = await async_playwright().start()

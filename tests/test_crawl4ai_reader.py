@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from webweb.models import WebReadResult
+from web4agent.models import WebReadResult
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ class TestReadCrawl4ai:
         try:
             with patch.dict("sys.modules", {"crawl4ai": None, "crawl4ai.markdown_generation_strategy": None}):
                 import importlib
-                import webweb.crawl4ai_reader as mod
+                import web4agent.crawl4ai_reader as mod
                 importlib.reload(mod)
                 result = await mod.read_crawl4ai("https://example.com/")
         finally:
@@ -79,7 +79,7 @@ class TestReadCrawl4ai:
         mods, _ = _make_mock_crawl4ai_modules(_make_crawl_result())
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -94,7 +94,7 @@ class TestReadCrawl4ai:
         )
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -108,7 +108,7 @@ class TestReadCrawl4ai:
         )
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -121,7 +121,7 @@ class TestReadCrawl4ai:
         )
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -146,7 +146,7 @@ class TestReadCrawl4ai:
 
         with patch.dict("sys.modules", {"crawl4ai": crawl4ai_mod, "crawl4ai.markdown_generation_strategy": md_mod}):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -158,7 +158,7 @@ class TestReadCrawl4ai:
         mods, _ = _make_mock_crawl4ai_modules(_make_crawl_result())
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -170,7 +170,7 @@ class TestReadCrawl4ai:
         mods, _ = _make_mock_crawl4ai_modules(_make_crawl_result())
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 
@@ -181,7 +181,7 @@ class TestReadCrawl4ai:
         mods, _ = _make_mock_crawl4ai_modules(_make_crawl_result())
         with patch.dict("sys.modules", mods):
             import importlib
-            import webweb.crawl4ai_reader as mod
+            import web4agent.crawl4ai_reader as mod
             importlib.reload(mod)
             result = await mod.read_crawl4ai("https://example.com/")
 

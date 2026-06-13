@@ -1,4 +1,4 @@
-"""Simple CLI for webweb."""
+"""Simple CLI for web4agent."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from . import agent_read_url, agent_read_urls, discover_links
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="webweb",
+        prog="web4agent",
         description="Easy web reader for LLM-friendly output.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)

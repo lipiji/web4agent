@@ -1,7 +1,7 @@
 """Tests for utility helpers."""
 
 import pytest
-from webweb.utils import (
+from web4agent.utils import (
     extract_text_bs4,
     extract_title_bs4,
     html_to_markdown,

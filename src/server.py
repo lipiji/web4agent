@@ -11,7 +11,7 @@ try:
 except ImportError as _exc:
     raise ImportError(
         "FastAPI is not installed. "
-        "Run: pip install 'webweb[server]'"
+        "Run: pip install 'web4agent[server]'"
     ) from _exc
 
 from .batch import read_many

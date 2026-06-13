@@ -1,5 +1,5 @@
 """
-webweb
+web4agent
 ~~~~~~
 Free, open-source, async-first web scraping toolkit for LLM agents.
 """
