@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -168,3 +168,106 @@ class TestReadFast:
             result = await read_fast("https://example.com/")
         # Either extractor returns something (or None for truly empty pages)
         assert result.text is None or isinstance(result.text, str)
+
+
+# ── Internal helpers ───────────────────────────────────────────────────────────
+
+class TestBrowserHeaders:
+    def test_returns_dict(self):
+        from web4agent.fast import _browser_headers
+        h = _browser_headers()
+        assert isinstance(h, dict)
+        assert len(h) > 0
+
+    def test_contains_user_agent(self):
+        from web4agent.fast import _browser_headers
+        h = _browser_headers()
+        # Header key may be capitalized differently
+        keys_lower = {k.lower() for k in h}
+        assert "user-agent" in keys_lower
+
+    def test_fallback_when_browserforge_absent(self):
+        from web4agent.fast import _browser_headers
+        with patch("web4agent.fast._browser_headers", wraps=_browser_headers):
+            # Simulate ImportError from browserforge by patching inside the function
+            import builtins
+            real_import = builtins.__import__
+
+            def mock_import(name, *args, **kwargs):
+                if name == "browserforge.headers":
+                    raise ImportError("no browserforge")
+                return real_import(name, *args, **kwargs)
+
+            with patch("builtins.__import__", side_effect=mock_import):
+                h = _browser_headers()
+        assert "User-Agent" in h
+        assert "Chrome" in h["User-Agent"]
+
+
+class TestHttpxGet:
+    @pytest.mark.asyncio
+    async def test_returns_status_html_url_tuple(self):
+        import httpx
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = httpx.URL("https://example.com/")
+        mock_resp.headers = {"content-type": "text/html; charset=utf-8"}
+        mock_resp.content = b"<html><body>hello</body></html>"
+        mock_resp.text = "<html><body>hello</body></html>"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            from web4agent.fast import _httpx_get
+            status, html, url = await _httpx_get("https://example.com/", 20, None)
+
+        assert status == 200
+        assert "hello" in html
+        assert url == "https://example.com/"
+
+    @pytest.mark.asyncio
+    async def test_charset_from_content_type(self):
+        import httpx
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = httpx.URL("https://example.com/")
+        mock_resp.headers = {"content-type": "text/html; charset=utf-8"}
+        mock_resp.content = "héllo".encode("utf-8")
+        mock_resp.text = "héllo"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            from web4agent.fast import _httpx_get
+            _, html, _ = await _httpx_get("https://example.com/", 20, None)
+
+        assert "h" in html
+
+    @pytest.mark.asyncio
+    async def test_proxy_passed_to_client(self):
+        import httpx
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = httpx.URL("https://example.com/")
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_resp.content = b"hi"
+        mock_resp.text = "hi"
+        mock_resp.apparent_encoding = "utf-8"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("httpx.AsyncClient", return_value=mock_client) as mock_cls:
+            from web4agent.fast import _httpx_get
+            await _httpx_get("https://example.com/", 20, "http://p:8080")
+
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs.get("proxy") == "http://p:8080"

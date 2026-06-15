@@ -1,5 +1,7 @@
 """Tests for utility helpers."""
 
+from unittest.mock import patch
+
 import pytest
 from web4agent.utils import (
     extract_text_bs4,
@@ -175,3 +177,24 @@ class TestHtmlToMarkdown:
     def test_empty_string(self):
         result = html_to_markdown("")
         assert result is None or isinstance(result, str)
+
+    def test_returns_none_on_exception(self):
+        with patch("markdownify.markdownify", side_effect=Exception("markdownify broke")):
+            result = html_to_markdown("<p>text</p>")
+        assert result is None
+
+
+class TestExtractTitleBs4Exceptions:
+    def test_returns_none_on_exception(self):
+        with patch("bs4.BeautifulSoup", side_effect=Exception("bs4 broke")):
+            from web4agent.utils import extract_title_bs4
+            result = extract_title_bs4("<html><head><title>T</title></head></html>")
+        assert result is None
+
+
+class TestExtractTextBs4Exceptions:
+    def test_returns_none_on_exception(self):
+        with patch("bs4.BeautifulSoup", side_effect=Exception("bs4 broke")):
+            from web4agent.utils import extract_text_bs4
+            result = extract_text_bs4("<html><body><p>text</p></body></html>")
+        assert result is None

@@ -185,3 +185,61 @@ class TestReadMany:
             await read_many(["https://a.com"], proxies=None)
 
         assert received_proxies[0] is None
+
+    @pytest.mark.asyncio
+    async def test_proxy_mark_success_on_success(self):
+        """mark_success is called when result.success is True and proxy is set."""
+        from unittest.mock import MagicMock
+        from web4agent.proxy import ProxyRotator
+
+        real_rotator = ProxyRotator(["http://p1:8080"])
+        real_rotator.mark_success = MagicMock(wraps=real_rotator.mark_success)
+
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            return _ok(url)
+
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            with patch("web4agent.proxy.ProxyRotator", return_value=real_rotator):
+                from web4agent.batch import read_many
+                await read_many(["https://a.com"], proxies=["http://p1:8080"])
+
+        real_rotator.mark_success.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_proxy_mark_failed_on_failure(self):
+        """mark_failed is called when result.success is False and proxy is set."""
+        from unittest.mock import MagicMock
+        from web4agent.proxy import ProxyRotator
+
+        real_rotator = ProxyRotator(["http://p1:8080"])
+        real_rotator.mark_failed = MagicMock(wraps=real_rotator.mark_failed)
+
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            return _fail(url)
+
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            with patch("web4agent.proxy.ProxyRotator", return_value=real_rotator):
+                from web4agent.batch import read_many
+                await read_many(["https://a.com"], proxies=["http://p1:8080"])
+
+        real_rotator.mark_failed.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_proxy_mark_failed_on_exception(self):
+        """mark_failed is called when read_url raises an exception and proxy is set."""
+        from unittest.mock import MagicMock
+        from web4agent.proxy import ProxyRotator
+
+        real_rotator = ProxyRotator(["http://p1:8080"])
+        real_rotator.mark_failed = MagicMock(wraps=real_rotator.mark_failed)
+
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            raise RuntimeError("boom")
+
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            with patch("web4agent.proxy.ProxyRotator", return_value=real_rotator):
+                from web4agent.batch import read_many
+                results = await read_many(["https://a.com"], proxies=["http://p1:8080"])
+
+        assert results[0].success is False
+        real_rotator.mark_failed.assert_called()
