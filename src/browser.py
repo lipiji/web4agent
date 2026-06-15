@@ -213,15 +213,23 @@ async def read_browser(
                 final_url = page.url
                 elapsed_ms = int((time.monotonic() - start) * 1000)
 
+                text: str | None = None
+                title: str | None = None
                 try:
                     import trafilatura
 
                     text = trafilatura.extract(html, include_links=False, include_images=False)
-                    traf_md = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=False)
                     meta = trafilatura.extract_metadata(html)
                     title = meta.title if meta else None
                 except Exception:
-                    text = traf_md = title = None
+                    pass
+
+                traf_md: str | None = None
+                if text:
+                    try:
+                        traf_md = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=False)
+                    except Exception:
+                        pass
 
                 if not text:
                     text = extract_text_bs4(html)

@@ -39,17 +39,34 @@ def _browser_headers() -> dict[str, str]:
 
 
 def _trafilatura_extract(html: str) -> tuple[str | None, str | None, str | None]:
-    """Return (text, title, markdown). markdown uses trafilatura's own cleaner output."""
+    """Return (text, title, markdown). Each extracted independently so one failure
+    does not discard the others."""
+    text: str | None = None
+    title: str | None = None
+    markdown: str | None = None
+
     try:
         import trafilatura
-
-        text = trafilatura.extract(html, include_links=False, include_images=False)
-        markdown = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=False)
-        meta = trafilatura.extract_metadata(html)
-        return text, (meta.title if meta else None), markdown
-    except Exception as exc:
-        logger.debug("trafilatura failed: %s", exc)
+    except ImportError:
         return None, None, None
+
+    try:
+        text = trafilatura.extract(html, include_links=False, include_images=False)
+    except Exception as exc:
+        logger.debug("trafilatura text failed: %s", exc)
+
+    try:
+        meta = trafilatura.extract_metadata(html)
+        title = meta.title if meta else None
+    except Exception as exc:
+        logger.debug("trafilatura metadata failed: %s", exc)
+
+    try:
+        markdown = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=False)
+    except Exception as exc:
+        logger.debug("trafilatura markdown failed: %s", exc)
+
+    return text, title, markdown
 
 
 async def _curl_get(

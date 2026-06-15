@@ -38,7 +38,7 @@ def truncate(text: str | None, max_chars: int) -> str | None:
         return text
     # Try to cut at a natural boundary within the last ~15 % of the limit.
     lookback = max(max_chars // 6, 40)
-    start = max_chars - lookback
+    start = max(0, max_chars - lookback)
     window = text[start:max_chars]
     for pat in (r"\n\s*\n", r"\n", r"[.?!。！？]\s", r"[.?!。！？]", r"\s"):
         m = None
