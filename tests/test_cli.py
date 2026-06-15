@@ -247,3 +247,64 @@ class TestRunLinks:
             from web4agent.cli import _run_links
             await _run_links(args)
         mock.assert_called_once_with("https://example.com", same_domain=True, max_links=10)
+
+
+# ── _run_search ──────────────────────────────────────────────────────────────────
+
+
+_SEARCH_RESULT = {
+    "query": "test query",
+    "results": [
+        {"url": "https://a.com", "title": "A", "content": "Content A", "extracted": True},
+        {"url": "https://b.com", "title": "B", "content": "Content B", "extracted": True},
+    ],
+    "hits": 2,
+    "extracted": 2,
+}
+
+
+class TestRunSearch:
+    @pytest.mark.asyncio
+    async def test_returns_0_when_results_found(self, capsys):
+        args = argparse.Namespace(
+            query=["test", "query"],
+            max_results=10,
+            extract_strategy="auto",
+            concurrency=5,
+            instance=None,
+        )
+        with patch("web4agent.cli.agent_search", AsyncMock(return_value=_SEARCH_RESULT)):
+            from web4agent.cli import _run_search
+            code = await _run_search(args)
+        assert code == 0
+
+    @pytest.mark.asyncio
+    async def test_returns_1_when_no_results(self, capsys):
+        empty = {"query": "x", "results": [], "hits": 0, "extracted": 0}
+        args = argparse.Namespace(
+            query=["x"], max_results=10, extract_strategy="auto", concurrency=5, instance=None,
+        )
+        with patch("web4agent.cli.agent_search", AsyncMock(return_value=empty)):
+            from web4agent.cli import _run_search
+            code = await _run_search(args)
+        assert code == 1
+
+    @pytest.mark.asyncio
+    async def test_query_words_joined(self, capsys):
+        args = argparse.Namespace(
+            query=["python", "web", "scraping"],
+            max_results=5,
+            extract_strategy="fast",
+            concurrency=3,
+            instance=None,
+        )
+        with patch("web4agent.cli.agent_search", AsyncMock(return_value=_SEARCH_RESULT)) as mock:
+            from web4agent.cli import _run_search
+            await _run_search(args)
+        mock.assert_called_once_with(
+            "python web scraping",
+            max_results=5,
+            extract_strategy="fast",
+            extract_concurrency=3,
+            instance=None,
+        )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .batch import read_many
 from .config import AGENT_MAX_CONTENT_CHARS
 from .models import WebReadResult
@@ -80,3 +82,41 @@ async def agent_read_urls(
         "succeeded": succeeded,
         "failed": len(results) - succeeded,
     }
+
+
+async def agent_search(
+    query: str,
+    *,
+    max_results: int = 10,
+    extract_strategy: str = "auto",
+    extract_concurrency: int = 5,
+    instance: str | None = None,
+) -> dict[str, Any]:
+    """
+    Search the web via SearXNG and extract full content for every result.
+
+    The free, self-hostable equivalent of paid search APIs like Tavily.
+    SearXNG aggregates Google, Bing, DuckDuckGo, Wikipedia and more.
+
+    Parameters
+    ----------
+    query:              Search query (natural language or keywords).
+    max_results:        Number of search hits to extract full content for.
+    extract_strategy:   Strategy for extracting each result page.
+    extract_concurrency: Max simultaneous extractions.
+    instance:           Optional custom SearXNG base URL.  Uses a rotating
+                        pool of public instances when omitted.
+
+    Returns
+    -------
+    ``{"query": str, "results": [...], "hits": int, "extracted": int}``
+    """
+    from .searx import search_and_extract
+
+    return await search_and_extract(
+        query,
+        instance=instance,
+        max_results=max_results,
+        extract_strategy=extract_strategy,
+        extract_concurrency=extract_concurrency,
+    )

@@ -7,7 +7,7 @@ import asyncio
 import json
 from typing import Any
 
-from . import agent_read_url, agent_read_urls, discover_links
+from . import agent_read_url, agent_read_urls, agent_search, discover_links
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -51,6 +51,31 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=300,
         help="Preview length per URL (default: 300)",
+    )
+
+    search_parser = subparsers.add_parser("search", help="Search via SearXNG and extract full content")
+    search_parser.add_argument("query", nargs="+", help="Search query")
+    search_parser.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Number of search hits to extract (default: 10)",
+    )
+    search_parser.add_argument(
+        "--instance",
+        help="Custom SearXNG base URL (uses public pool by default)",
+    )
+    search_parser.add_argument(
+        "--extract-strategy",
+        choices=["auto", "fast", "browser"],
+        default="auto",
+        help="Strategy for extracting each result page (default: auto)",
+    )
+    search_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Concurrent extractions (default: 5)",
     )
 
     links_parser = subparsers.add_parser("links", help="Extract links from one URL")
@@ -109,6 +134,19 @@ async def _run_links(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _run_search(args: argparse.Namespace) -> int:
+    query = " ".join(args.query)
+    result = await agent_search(
+        query,
+        max_results=args.max_results,
+        extract_strategy=args.extract_strategy,
+        extract_concurrency=args.concurrency,
+        instance=args.instance,
+    )
+    _print_json(result)
+    return 0 if result.get("extracted", 0) > 0 else 1
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -119,6 +157,8 @@ def main() -> None:
         raise SystemExit(asyncio.run(_run_many(args)))
     if args.command == "links":
         raise SystemExit(asyncio.run(_run_links(args)))
+    if args.command == "search":
+        raise SystemExit(asyncio.run(_run_search(args)))
 
     parser.error(f"Unsupported command: {args.command}")
 
