@@ -12,7 +12,9 @@ from web4agent.ddg_reader import (
     _extract_href_host,
     _norm_host,
     _parse_ddg_results,
+    _resolve_ddg_href,
     read_ddg,
+    search_ddg,
 )
 from web4agent.models import WebReadResult
 
@@ -428,3 +430,80 @@ class TestReadDdg:
         assert "target" in query
         # Should NOT contain the full raw URL (scheme, slashes)
         assert "https://" not in query
+
+
+# ── search_ddg ─────────────────────────────────────────────────────────────────
+
+
+_MULTI_RESULTS = [
+    {"title": "First Result", "href": "https://first.com/article", "snippet": GOOD_SNIPPET},
+    {"title": "Second Result", "href": "https://second.com/page", "snippet": GOOD_SNIPPET},
+    {"title": "Short Snippet", "href": "https://third.com", "snippet": "tiny"},  # filtered
+]
+_DDG_HTML_MULTI = _make_ddg_html(_MULTI_RESULTS)
+
+
+class TestSearchDdg:
+    @pytest.mark.asyncio
+    async def test_returns_structured_results(self):
+        with _mock_ddg_client(_DDG_HTML_MULTI):
+            results = await search_ddg("test query")
+
+        assert len(results) == 2  # third filtered by min snippet length
+        assert results[0]["title"] == "First Result"
+        assert results[0]["url"] == "https://first.com/article"
+        assert GOOD_SNIPPET in results[0]["snippet"]
+
+    @pytest.mark.asyncio
+    async def test_respects_max_results(self):
+        with _mock_ddg_client(_DDG_HTML_MULTI):
+            results = await search_ddg("test", max_results=1)
+
+        assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_on_http_error(self):
+        with _mock_ddg_client("", status_code=500):
+            results = await search_ddg("test")
+        assert results == []
+
+    @pytest.mark.asyncio
+    async def test_empty_on_network_error(self):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(side_effect=Exception("network error"))
+
+        with patch("web4agent.ddg_reader.httpx.AsyncClient", return_value=mock_client):
+            results = await search_ddg("test query")
+        assert results == []
+
+    @pytest.mark.asyncio
+    async def test_empty_on_empty_results_page(self):
+        with _mock_ddg_client(_DDG_HTML_EMPTY):
+            results = await search_ddg("rareterm")
+        assert results == []
+
+    def test_resolve_ddg_href_uddg_redirect(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(
+            '<a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.com%2Fpage">link</a>',
+            "html.parser",
+        )
+        tag = soup.find("a")
+        assert _resolve_ddg_href(tag) == "https://example.com/page"
+
+    def test_resolve_ddg_href_direct(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(
+            '<a class="result__a" href="https://direct.com/page">link</a>',
+            "html.parser",
+        )
+        tag = soup.find("a")
+        assert _resolve_ddg_href(tag) == "https://direct.com/page"
+
+    def test_resolve_ddg_href_none_or_empty(self):
+        assert _resolve_ddg_href(None) == ""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup('<a class="other">no href</a>', "html.parser")
+        assert _resolve_ddg_href(soup.find("a")) == ""

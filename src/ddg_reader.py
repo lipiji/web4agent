@@ -197,3 +197,88 @@ async def read_ddg(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
             fetched_at=fetched_at,
             elapsed_ms=elapsed_ms,
         )
+
+
+def _resolve_ddg_href(a_tag) -> str:
+    """Resolve a DDG result link to its real destination URL."""
+    if not a_tag or not a_tag.get("href"):
+        return ""
+    href = a_tag["href"]
+    try:
+        parsed = urlparse(href)
+        if parsed.path.startswith("/l/"):
+            qs = parse_qs(parsed.query)
+            real = qs.get("uddg", [None])[0]
+            if real:
+                return unquote(real)
+        return href
+    except Exception:
+        return ""
+
+
+async def search_ddg(
+    query: str,
+    max_results: int = 10,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> list[dict]:
+    """
+    Search DuckDuckGo and return structured results.  Free, no API key.
+
+    Parameters
+    ----------
+    query:       Search query (natural language or keywords).
+    max_results: Maximum number of results to return.
+    timeout:     Request timeout in seconds.
+
+    Returns
+    -------
+    ``[{title, url, snippet}, …]`` — empty list on failure.
+    """
+    try:
+        async with httpx.AsyncClient(
+            headers=_HEADERS,
+            timeout=httpx.Timeout(timeout),
+            follow_redirects=True,
+        ) as client:
+            resp = await client.post(
+                _DDG_HTML,
+                data={"q": query, "b": "", "kl": "us-en"},
+            )
+            if resp.status_code >= 400:
+                logger.debug("DDG search returned HTTP %s", resp.status_code)
+                return []
+            html = resp.text
+    except Exception as exc:
+        logger.warning("DDG search request failed: %s", exc)
+        return []
+
+    try:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html, "html.parser")
+        result_nodes = soup.select(".result")
+    except Exception as exc:
+        logger.debug("DDG parse failed: %s", exc)
+        return []
+
+    results: list[dict] = []
+    for node in result_nodes:
+        snippet_tag = node.select_one(".result__snippet")
+        title_tag = node.select_one(".result__title")
+        a_tag = node.select_one("a.result__a")
+
+        snippet = snippet_tag.get_text(" ", strip=True) if snippet_tag else ""
+        if len(snippet) < _MIN_SNIPPET_CHARS:
+            continue
+
+        title = title_tag.get_text(strip=True) if title_tag else ""
+        url = _resolve_ddg_href(a_tag)
+        if not url:
+            continue
+
+        results.append({"title": title, "url": url, "snippet": snippet})
+        if len(results) >= max_results:
+            break
+
+    logger.debug("DDG search: %d results for %r", len(results), query)
+    return results

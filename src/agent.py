@@ -93,10 +93,11 @@ async def agent_search(
     instance: str | None = None,
 ) -> dict[str, Any]:
     """
-    Search the web via SearXNG and extract full content for every result.
+    Search the web and extract full content for every result.
 
-    The free, self-hostable equivalent of paid search APIs like Tavily.
-    SearXNG aggregates Google, Bing, DuckDuckGo, Wikipedia and more.
+    Uses DuckDuckGo first (reliable, free, no API key), falls back to
+    SearXNG public instances.  The free equivalent of paid search APIs
+    like Tavily.
 
     Parameters
     ----------
@@ -104,19 +105,62 @@ async def agent_search(
     max_results:        Number of search hits to extract full content for.
     extract_strategy:   Strategy for extracting each result page.
     extract_concurrency: Max simultaneous extractions.
-    instance:           Optional custom SearXNG base URL.  Uses a rotating
-                        pool of public instances when omitted.
+    instance:           Optional custom SearXNG base URL (only used as
+                        fallback when DDG returns no results).
 
     Returns
     -------
     ``{"query": str, "results": [...], "hits": int, "extracted": int}``
     """
-    from .searx import search_and_extract
+    import time
 
-    return await search_and_extract(
-        query,
-        instance=instance,
-        max_results=max_results,
-        extract_strategy=extract_strategy,
-        extract_concurrency=extract_concurrency,
-    )
+    from .ddg_reader import search_ddg
+    from .searx import search_searx
+
+    start = time.monotonic()
+
+    # 1) Try DDG first — reliable, free, no rate limits
+    hits = await search_ddg(query, max_results=max_results)
+    search_backend = "ddg"
+
+    # 2) Fall back to SearXNG if DDG returned nothing
+    if not hits:
+        hits = await search_searx(query, max_results=max_results, instance=instance)
+        search_backend = "searxng"
+
+    if not hits:
+        return {
+            "query": query,
+            "results": [],
+            "hits": 0,
+            "extracted": 0,
+            "search_backend": search_backend,
+            "error": "No search results found",
+        }
+
+    urls = [h["url"] for h in hits if h.get("url")]
+    extracted = await read_many(urls, concurrency=extract_concurrency, strategy=extract_strategy)
+
+    results: list[dict[str, Any]] = []
+    for hit, page in zip(hits, extracted):
+        body = page.markdown or page.text
+        if not body and page.html:
+            body = extract_text_bs4(page.html)
+        results.append({
+            "url": hit["url"],
+            "title": page.title or hit.get("title", ""),
+            "content": body or hit.get("snippet", ""),
+            "search_snippet": hit.get("snippet", ""),
+            "extracted": page.success,
+            "source": page.strategy_used,
+        })
+
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    return {
+        "query": query,
+        "results": results,
+        "hits": len(hits),
+        "extracted": sum(1 for r in results if r["extracted"]),
+        "search_backend": search_backend,
+        "elapsed_ms": elapsed_ms,
+    }
