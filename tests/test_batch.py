@@ -30,14 +30,10 @@ def _fail(url: str, error: str = "timeout") -> WebReadResult:
 class TestReadMany:
     @pytest.mark.asyncio
     async def test_returns_results_in_input_order(self):
-        urls = [
-            "https://a.com",
-            "https://b.com",
-            "https://c.com",
-        ]
+        urls = ["https://a.com", "https://b.com", "https://c.com"]
 
-        async def fake_read_url(url, strategy="auto"):
-            await asyncio.sleep(0)  # yield
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            await asyncio.sleep(0)
             return _ok(url)
 
         with patch("web4agent.batch.read_url", side_effect=fake_read_url):
@@ -50,7 +46,7 @@ class TestReadMany:
     async def test_single_failure_does_not_stop_others(self):
         urls = ["https://a.com", "https://b.com", "https://c.com"]
 
-        async def fake_read_url(url, strategy="auto"):
+        async def fake_read_url(url, strategy="auto", proxy=None):
             if url == "https://b.com":
                 return _fail(url, error="network error")
             return _ok(url)
@@ -65,10 +61,10 @@ class TestReadMany:
 
     @pytest.mark.asyncio
     async def test_deduplicates_urls(self):
-        urls = ["https://a.com", "https://b.com", "https://a.com"]  # a duplicated
-        call_count = {}
+        urls = ["https://a.com", "https://b.com", "https://a.com"]
+        call_count: dict[str, int] = {}
 
-        async def fake_read_url(url, strategy="auto"):
+        async def fake_read_url(url, strategy="auto", proxy=None):
             call_count[url] = call_count.get(url, 0) + 1
             return _ok(url)
 
@@ -76,9 +72,7 @@ class TestReadMany:
             from web4agent.batch import read_many
             results = await read_many(urls)
 
-        # a.com fetched only once
         assert call_count.get("https://a.com", 0) == 1
-        # result list still has 3 entries matching input
         assert len(results) == 3
         assert results[0].url == "https://a.com"
         assert results[2].url == "https://a.com"
@@ -87,7 +81,7 @@ class TestReadMany:
     async def test_duplicate_results_are_same_object(self):
         urls = ["https://x.com", "https://x.com"]
 
-        async def fake_read_url(url, strategy="auto"):
+        async def fake_read_url(url, strategy="auto", proxy=None):
             return _ok(url)
 
         with patch("web4agent.batch.read_url", side_effect=fake_read_url):
@@ -98,11 +92,10 @@ class TestReadMany:
 
     @pytest.mark.asyncio
     async def test_concurrency_respected(self):
-        """Verify semaphore limits simultaneous calls."""
-        active = []
-        max_active = []
+        active: list[str] = []
+        max_active: list[int] = []
 
-        async def fake_read_url(url, strategy="auto"):
+        async def fake_read_url(url, strategy="auto", proxy=None):
             active.append(url)
             max_active.append(len(active))
             await asyncio.sleep(0.01)
@@ -110,7 +103,6 @@ class TestReadMany:
             return _ok(url)
 
         urls = [f"https://site{i}.com" for i in range(10)]
-
         with patch("web4agent.batch.read_url", side_effect=fake_read_url):
             from web4agent.batch import read_many
             await read_many(urls, concurrency=3)
@@ -119,10 +111,9 @@ class TestReadMany:
 
     @pytest.mark.asyncio
     async def test_exception_in_read_url_caught(self):
-        """Unexpected exception inside read_url must not crash read_many."""
         urls = ["https://ok.com", "https://explode.com"]
 
-        async def fake_read_url(url, strategy="auto"):
+        async def fake_read_url(url, strategy="auto", proxy=None):
             if "explode" in url:
                 raise RuntimeError("unexpected boom")
             return _ok(url)
@@ -143,21 +134,54 @@ class TestReadMany:
 
     @pytest.mark.asyncio
     async def test_strategy_passed_to_read_url(self):
-        received_strategies = []
+        received: list[str] = []
 
-        async def fake_read_url(url, strategy="auto"):
-            received_strategies.append(strategy)
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            received.append(strategy)
             return _ok(url)
 
         with patch("web4agent.batch.read_url", side_effect=fake_read_url):
             from web4agent.batch import read_many
             await read_many(["https://a.com", "https://b.com"], strategy="fast")
 
-        assert all(s == "fast" for s in received_strategies)
+        assert all(s == "fast" for s in received)
 
     @pytest.mark.asyncio
     async def test_default_concurrency_by_strategy(self):
-        """Default concurrency should differ by strategy."""
         from web4agent.batch import _STRATEGY_DEFAULT_CONCURRENCY
         assert _STRATEGY_DEFAULT_CONCURRENCY["fast"] >= 10
         assert _STRATEGY_DEFAULT_CONCURRENCY["browser"] <= 5
+
+    # ── proxy rotation ─────────────────────────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_proxies_distributed_across_requests(self):
+        """Each request receives a proxy from the list."""
+        received_proxies: list[str | None] = []
+
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            received_proxies.append(proxy)
+            return _ok(url)
+
+        urls = ["https://a.com", "https://b.com", "https://c.com"]
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
+            await read_many(urls, proxies=["http://p1:8080", "http://p2:8080"])
+
+        assert all(p is not None for p in received_proxies)
+        # at least one proxy from the list was used
+        assert any(p in ("http://p1:8080", "http://p2:8080") for p in received_proxies)
+
+    @pytest.mark.asyncio
+    async def test_no_proxies_passes_none(self):
+        received_proxies: list[str | None] = []
+
+        async def fake_read_url(url, strategy="auto", proxy=None):
+            received_proxies.append(proxy)
+            return _ok(url)
+
+        with patch("web4agent.batch.read_url", side_effect=fake_read_url):
+            from web4agent.batch import read_many
+            await read_many(["https://a.com"], proxies=None)
+
+        assert received_proxies[0] is None

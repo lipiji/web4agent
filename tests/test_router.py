@@ -114,7 +114,25 @@ class TestReadUrlDispatch:
         with patch("web4agent.router.read_fast", AsyncMock(return_value=good)) as mock_fast:
             from web4agent.router import read_url
             result = await read_url("https://example.com", strategy="fast")
-        mock_fast.assert_called_once_with("https://example.com")
+        mock_fast.assert_called_once_with("https://example.com", proxy=None)
+
+    @pytest.mark.asyncio
+    async def test_proxy_forwarded_to_read_fast(self):
+        good = _make_result(strategy_used="fast")
+        with patch("web4agent.router.read_fast", AsyncMock(return_value=good)) as mock_fast:
+            from web4agent.router import read_url
+            await read_url("https://example.com", strategy="fast", proxy="http://p:8080")
+        mock_fast.assert_called_once_with("https://example.com", proxy="http://p:8080")
+
+    @pytest.mark.asyncio
+    async def test_proxy_forwarded_to_read_browser(self):
+        good = _make_result(strategy_used="browser")
+        with patch("web4agent.router.read_browser", AsyncMock(return_value=good)) as mock_b:
+            from web4agent.router import read_url
+            await read_url("https://example.com", strategy="browser", proxy="http://p:8080")
+        call_kwargs = mock_b.call_args[1] if mock_b.call_args[1] else {}
+        call_args = mock_b.call_args[0]
+        assert "http://p:8080" in (call_kwargs.get("proxy"), *call_args)
 
     @pytest.mark.asyncio
     async def test_browser_strategy_calls_read_browser(self):

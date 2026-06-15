@@ -108,7 +108,14 @@ class TestAgentReadUrl:
         with patch("web4agent.agent.read_url", AsyncMock(return_value=_ok("https://x.com"))) as mock:
             from web4agent.agent import agent_read_url
             await agent_read_url("https://x.com", strategy="browser")
-        mock.assert_called_once_with("https://x.com", strategy="browser")
+        mock.assert_called_once_with("https://x.com", strategy="browser", proxy=None)
+
+    @pytest.mark.asyncio
+    async def test_proxy_forwarded(self):
+        with patch("web4agent.agent.read_url", AsyncMock(return_value=_ok("https://x.com"))) as mock:
+            from web4agent.agent import agent_read_url
+            await agent_read_url("https://x.com", proxy="http://p:8080")
+        mock.assert_called_once_with("https://x.com", strategy="auto", proxy="http://p:8080")
 
 
 class TestAgentReadUrls:
