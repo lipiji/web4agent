@@ -132,8 +132,10 @@ class _BrowserManager:
             try:
                 yield page
             finally:
-                await page.close()
-                await context.close()
+                try:
+                    await page.close()
+                finally:
+                    await context.close()
 
     async def close(self) -> None:
         async with self._lock:
@@ -282,6 +284,7 @@ async def read_browser(
                 )
 
     except Exception as exc:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
         error = f"{type(exc).__name__}: {exc}"
         logger.warning("read_browser outer error %s: %s", url, error)
         return WebReadResult(
@@ -289,6 +292,7 @@ async def read_browser(
             success=False,
             error=error,
             strategy_used="browser",
-            attempts=[FetchAttempt(strategy="browser", success=False, error=error)],
+            attempts=[FetchAttempt(strategy="browser", success=False, error=error, elapsed_ms=elapsed_ms)],
             fetched_at=fetched_at,
+            elapsed_ms=elapsed_ms,
         )

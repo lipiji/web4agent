@@ -26,6 +26,11 @@ _HEADERS = {
 }
 
 
+def _norm_host(host: str) -> str:
+    host = host.lower()
+    return host.removeprefix("www.")
+
+
 def _url_to_query(url: str) -> str:
     """Extract domain + path keywords from a URL to form a DDG search query."""
     parsed = urlparse(url)
@@ -36,11 +41,6 @@ def _url_to_query(url: str) -> str:
     if not keywords:
         return host or url
     return f"{host} {' '.join(keywords[:5])}"
-
-
-def _norm_host(host: str) -> str:
-    host = host.lower()
-    return host.removeprefix("www.")
 
 
 def _extract_href_host(a_tag) -> str:

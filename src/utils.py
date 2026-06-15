@@ -31,11 +31,22 @@ def looks_like_js_page(html: str, text: str | None) -> bool:
 
 
 def truncate(text: str | None, max_chars: int) -> str | None:
-    """Truncate text to max_chars, appending ellipsis if truncated."""
+    """Truncate near max_chars trying to keep content whole for LLM readability."""
     if text is None:
         return None
     if len(text) <= max_chars:
         return text
+    # Try to cut at a natural boundary within the last ~15 % of the limit.
+    lookback = max(max_chars // 6, 40)
+    start = max_chars - lookback
+    window = text[start:max_chars]
+    for pat in (r"\n\s*\n", r"\n", r"[.?!]\s", r"\s"):
+        m = None
+        for match in re.finditer(pat, window):
+            m = match
+        if m:
+            cut = start + m.end()
+            return text[:cut].rstrip() + "\n\n… [truncated]"
     return text[:max_chars] + "\n\n… [truncated]"
 
 
