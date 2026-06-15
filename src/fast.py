@@ -50,21 +50,27 @@ def _trafilatura_extract(html: str) -> tuple[str | None, str | None]:
         return None, None
 
 
-async def _curl_get(url: str, timeout: int) -> tuple[int, str, str]:
+async def _curl_get(
+    url: str, timeout: int, proxy: str | None
+) -> tuple[int, str, str]:
     """Fetch via curl_cffi with TLS impersonation. Raises ImportError if not installed."""
     from curl_cffi.requests import AsyncSession
 
+    proxy_map = {"http": proxy, "https": proxy} if proxy else None
     async with AsyncSession(impersonate=_IMPERSONATE, verify=False) as session:
         resp = await session.get(
             url,
             headers=_browser_headers(),
             timeout=timeout,
             allow_redirects=True,
+            proxies=proxy_map,
         )
         return resp.status_code, resp.text, str(resp.url)
 
 
-async def _httpx_get(url: str, timeout: int) -> tuple[int, str, str]:
+async def _httpx_get(
+    url: str, timeout: int, proxy: str | None
+) -> tuple[int, str, str]:
     """Fetch via httpx as fallback when curl_cffi is not installed."""
     import httpx
 
@@ -73,6 +79,7 @@ async def _httpx_get(url: str, timeout: int) -> tuple[int, str, str]:
         timeout=httpx.Timeout(timeout),
         follow_redirects=True,
         verify=False,
+        proxy=proxy,
     ) as client:
         resp = await client.get(url)
         ct = resp.headers.get("content-type", "")
@@ -88,21 +95,30 @@ async def _httpx_get(url: str, timeout: int) -> tuple[int, str, str]:
         return resp.status_code, html, str(resp.url)
 
 
-async def read_fast(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
+async def read_fast(
+    url: str,
+    timeout: int = DEFAULT_TIMEOUT,
+    proxy: str | None = None,
+) -> WebReadResult:
     """
     Fetch a URL and extract main content as text and Markdown.
 
-    Prefers curl_cffi (TLS impersonation, harder to fingerprint) when installed,
-    falls back to httpx transparently.
+    Prefers curl_cffi (TLS impersonation) when installed, falls back to httpx.
+
+    Parameters
+    ----------
+    url:     Target URL.
+    timeout: Request timeout in seconds.
+    proxy:   Optional proxy URL, e.g. ``"http://user:pass@host:port"``.
     """
     start = time.monotonic()
     fetched_at = utc_now_iso()
 
     try:
         try:
-            status_code, html, final_url = await _curl_get(url, timeout)
+            status_code, html, final_url = await _curl_get(url, timeout, proxy)
         except ImportError:
-            status_code, html, final_url = await _httpx_get(url, timeout)
+            status_code, html, final_url = await _httpx_get(url, timeout, proxy)
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
 

@@ -105,6 +105,41 @@ async def main():
 asyncio.run(main())
 ```
 
+### Proxy rotation
+
+```python
+import asyncio
+from web4agent import agent_read_urls
+
+async def main():
+    proxies = [
+        "http://user:pass@proxy1:8080",
+        "socks5://proxy2:1080",
+    ]
+    summary = await agent_read_urls(
+        ["https://example.com", "https://python.org"],
+        proxies=proxies,
+        proxy_mode="round_robin",  # or "random"
+    )
+    print(summary)
+
+asyncio.run(main())
+```
+
+Or manage rotation manually:
+
+```python
+from web4agent import ProxyRotator, read_url
+
+rotator = ProxyRotator(["http://p1:8080", "http://p2:8080"])
+proxy = rotator.next()
+result = await read_url("https://example.com", proxy=proxy)
+rotator.mark_success(proxy) if result.success else rotator.mark_failed(proxy)
+print(rotator.stats())
+```
+
+---
+
 ### Agent interface (slim dicts for LLM context)
 
 ```python

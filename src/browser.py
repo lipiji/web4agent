@@ -15,7 +15,6 @@ from .utils import extract_text_bs4, extract_title_bs4, html_to_markdown, utc_no
 logger = logging.getLogger(__name__)
 
 # Browser launch flags that reduce automation signals.
-# Derived from general open-source knowledge on headless detection avoidance.
 _LAUNCH_ARGS = [
     "--no-sandbox",
     "--disable-dev-shm-usage",
@@ -56,7 +55,9 @@ def _get_ua() -> str:
         from browserforge.headers import HeaderGenerator
 
         hdrs = dict(HeaderGenerator(browser="chrome", os="windows").generate())
-        return hdrs.get("User-Agent", "")
+        ua = hdrs.get("User-Agent", "")
+        if ua:
+            return ua
     except ImportError:
         pass
     return (
@@ -81,7 +82,7 @@ def _import_playwright():
     except ImportError as exc:
         raise RuntimeError(
             "No browser driver found. "
-            "Run: pip install 'web4agent[browser]' && playwright install chromium"
+            "Run: pip install 'web4agent[browser]' && patchright install chromium"
         ) from exc
 
 
@@ -110,14 +111,16 @@ class _BrowserManager:
         return self._browser
 
     @asynccontextmanager
-    async def acquire_page(self, user_agent: str):
+    async def acquire_page(self, user_agent: str, proxy: str | None = None):
         async with self._semaphore:
             browser = await self._ensure_browser()
+            proxy_settings = {"server": proxy} if proxy else None
             context = await browser.new_context(
                 user_agent=user_agent,
                 java_script_enabled=True,
                 viewport={"width": 1280, "height": 720},
                 locale="en-US",
+                proxy=proxy_settings,
             )
             await context.add_init_script(_CANVAS_NOISE_SCRIPT)
             page = await context.new_page()
@@ -154,19 +157,28 @@ async def read_browser(
     wait_until: str = "networkidle",
     timeout: int = DEFAULT_TIMEOUT,
     screenshot: bool = False,
+    proxy: str | None = None,
 ) -> WebReadResult:
     """
     Render a page with a headless browser and extract content from the live DOM.
 
     Uses patchright when installed (reduced bot-detection surface), falls back
-    to stock Playwright. Browser instance is shared across calls; concurrency
-    is capped at BROWSER_CONCURRENCY simultaneous pages.
+    to stock Playwright. Browser instance is shared; concurrency is capped at
+    BROWSER_CONCURRENCY simultaneous pages.
+
+    Parameters
+    ----------
+    url:        Target URL.
+    wait_until: Playwright navigation event to wait for.
+    timeout:    Navigation timeout in seconds.
+    screenshot: If True, attach a base64 full-page PNG to ``result.metadata``.
+    proxy:      Optional proxy URL, e.g. ``"http://user:pass@host:port"``.
     """
     start = time.monotonic()
     fetched_at = utc_now_iso()
 
     try:
-        async with _manager.acquire_page(_get_ua()) as page:
+        async with _manager.acquire_page(_get_ua(), proxy=proxy) as page:
             try:
                 response = await page.goto(url, wait_until=wait_until, timeout=timeout * 1000)
                 status_code = response.status if response else None

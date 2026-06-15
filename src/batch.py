@@ -24,6 +24,8 @@ async def read_many(
     urls: list[str],
     concurrency: int | None = None,
     strategy: str = "auto",
+    proxies: list[str] | None = None,
+    proxy_mode: str = "round_robin",
 ) -> list[WebReadResult]:
     """
     Fetch multiple URLs concurrently, preserving input order.
@@ -31,15 +33,23 @@ async def read_many(
     Parameters
     ----------
     urls:        List of URLs to fetch (duplicates deduplicated for fetching,
-                 but output list matches input order).
+                 output list matches input order).
     concurrency: Max simultaneous requests. Defaults per strategy if None.
     strategy:    Passed to read_url for each URL.
+    proxies:     Optional list of proxy URLs to rotate across requests.
+                 Format: ``["http://host:port", "socks5://host:port"]``
+    proxy_mode:  ``"round_robin"`` (default) or ``"random"``.
     """
     if concurrency is None:
         concurrency = _STRATEGY_DEFAULT_CONCURRENCY.get(strategy, 10)
 
-    # Deduplicate while preserving order; track indices
-    seen: dict[str, int] = {}  # url -> index in deduplicated list
+    rotator = None
+    if proxies:
+        from .proxy import ProxyRotator
+        rotator = ProxyRotator(proxies, mode=proxy_mode)
+
+    # Deduplicate while preserving order.
+    seen: dict[str, int] = {}
     deduped: list[str] = []
     for url in urls:
         if url not in seen:
@@ -49,11 +59,20 @@ async def read_many(
     semaphore = asyncio.Semaphore(concurrency)
 
     async def _fetch(url: str) -> WebReadResult:
+        proxy = rotator.next() if rotator else None
         async with semaphore:
             try:
-                return await read_url(url, strategy=strategy)
+                result = await read_url(url, strategy=strategy, proxy=proxy)
+                if proxy:
+                    if result.success:
+                        rotator.mark_success(proxy)
+                    else:
+                        rotator.mark_failed(proxy)
+                return result
             except Exception as exc:
                 logger.error("Unexpected error fetching %s: %s", url, exc)
+                if proxy and rotator:
+                    rotator.mark_failed(proxy)
                 error = f"{type(exc).__name__}: {exc}"
                 return WebReadResult(
                     url=url,
@@ -65,16 +84,16 @@ async def read_many(
                 )
 
     logger.info(
-        "read_many: %d URLs (%d unique), concurrency=%d, strategy=%s",
+        "read_many: %d URLs (%d unique), concurrency=%d, strategy=%s, proxies=%d",
         len(urls),
         len(deduped),
         concurrency,
         strategy,
+        len(proxies) if proxies else 0,
     )
 
     tasks = [asyncio.create_task(_fetch(url)) for url in deduped]
     deduped_results = await asyncio.gather(*tasks)
 
-    # Map results back to original (possibly duplicate) URL list
     cache: dict[str, WebReadResult] = {url: deduped_results[i] for url, i in seen.items()}
     return [cache[url] for url in urls]

@@ -26,16 +26,21 @@ def _slim(result: WebReadResult) -> dict:
     }
 
 
-async def agent_read_url(url: str, strategy: str = "auto") -> dict:
+async def agent_read_url(
+    url: str,
+    strategy: str = "auto",
+    proxy: str | None = None,
+) -> dict:
     """
     Fetch a single URL and return a slim dict suitable for LLM context.
 
     Parameters
     ----------
     url:      URL to fetch.
-    strategy: 'fast', 'crawl4ai', 'browser', or 'auto'.
+    strategy: ``'fast'``, ``'crawl4ai'``, ``'browser'``, or ``'auto'``.
+    proxy:    Optional proxy URL, e.g. ``"http://user:pass@host:port"``.
     """
-    result = await read_url(url, strategy=strategy)
+    result = await read_url(url, strategy=strategy, proxy=proxy)
     return _slim(result)
 
 
@@ -43,20 +48,31 @@ async def agent_read_urls(
     urls: list[str],
     concurrency: int = 10,
     strategy: str = "auto",
+    proxies: list[str] | None = None,
+    proxy_mode: str = "round_robin",
 ) -> dict:
     """
     Fetch multiple URLs concurrently and return a summary dict.
 
+    Parameters
+    ----------
+    urls:       List of URLs to fetch.
+    concurrency: Max simultaneous requests.
+    strategy:   Fetch strategy for each URL.
+    proxies:    Optional proxy list to rotate across requests.
+    proxy_mode: ``"round_robin"`` (default) or ``"random"``.
+
     Returns
     -------
-    {
-        "results": [slim dict, ...],
-        "total": int,
-        "succeeded": int,
-        "failed": int,
-    }
+    ``{"results": [...], "total": int, "succeeded": int, "failed": int}``
     """
-    results = await read_many(urls, concurrency=concurrency, strategy=strategy)
+    results = await read_many(
+        urls,
+        concurrency=concurrency,
+        strategy=strategy,
+        proxies=proxies,
+        proxy_mode=proxy_mode,
+    )
     slim_list = [_slim(r) for r in results]
     succeeded = sum(1 for r in results if r.success)
     return {

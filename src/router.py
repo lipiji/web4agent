@@ -39,31 +39,42 @@ def _merge_attempts(base: WebReadResult, extra: WebReadResult) -> WebReadResult:
     return winner.model_copy(update={"attempts": combined_attempts})
 
 
-async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
+async def read_url(
+    url: str,
+    strategy: str = "auto",
+    proxy: str | None = None,
+) -> WebReadResult:
     """
     Fetch a URL with the given strategy.
 
     strategy values
     ---------------
-    fast      – httpx only
+    fast      – httpx / curl_cffi only
     crawl4ai  – Crawl4AI only
-    browser   – Playwright only
+    browser   – headless browser only
     wayback   – archive.org Wayback Machine only
     ddg       – DuckDuckGo search snippet only
-    auto      – fast → crawl4ai → browser → wayback → ddg (degrades on failure/empty content)
-                Set WRT_EXTENDED_FALLBACKS=false to stop at browser.
+    auto      – fast → crawl4ai → browser → wayback → ddg
+                (degrades on failure or sparse content)
+
+    Parameters
+    ----------
+    url:      Target URL.
+    strategy: Fetch strategy (see above).
+    proxy:    Optional proxy URL, e.g. ``"http://user:pass@host:port"``.
+              Applied to fast and browser strategies.
     """
     if strategy not in _VALID_STRATEGIES:
         raise ValueError(f"Unknown strategy {strategy!r}. Choose from {_VALID_STRATEGIES}.")
 
     if strategy == "fast":
-        return await read_fast(url)
+        return await read_fast(url, proxy=proxy)
 
     if strategy == "crawl4ai":
         return await read_crawl4ai(url)
 
     if strategy == "browser":
-        return await read_browser(url)
+        return await read_browser(url, proxy=proxy)
 
     if strategy == "wayback":
         return await read_wayback(url)
@@ -73,7 +84,7 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
 
     # ── auto ──────────────────────────────────────────────────────────────────
     logger.debug("auto strategy: trying fast for %s", url)
-    result = await read_fast(url)
+    result = await read_fast(url, proxy=proxy)
 
     if not _should_degrade(result):
         return result
@@ -91,7 +102,7 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
         return result
 
     logger.debug("auto strategy: crawl4ai insufficient, trying browser for %s", url)
-    browser_result = await read_browser(url)
+    browser_result = await read_browser(url, proxy=proxy)
     result = _merge_attempts(result, browser_result)
 
     if not _should_degrade(browser_result):
@@ -119,7 +130,6 @@ async def read_url(url: str, strategy: str = "auto") -> WebReadResult:
     ddg_result = await read_ddg(url)
     result = _merge_attempts(result, ddg_result)
 
-    # ddg snippets are intentionally short; accept any successful result
     if ddg_result.success:
         return result
 

@@ -12,6 +12,7 @@ from .ddg_reader import read_ddg
 from .fast import read_fast
 from .links import discover_links
 from .models import FetchAttempt, WebReadResult
+from .proxy import ProxyRotator
 from .router import read_url
 from .wayback_reader import read_wayback
 
@@ -28,4 +29,5 @@ __all__ = [
     "agent_read_urls",
     "WebReadResult",
     "FetchAttempt",
+    "ProxyRotator",
 ]
