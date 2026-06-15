@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import logging
-
 from .batch import read_many
 from .config import AGENT_MAX_CONTENT_CHARS
 from .models import WebReadResult
 from .router import read_url
-from .utils import truncate
-
-logger = logging.getLogger(__name__)
+from .utils import extract_text_bs4, truncate
 
 
 def _slim(result: WebReadResult) -> dict:
     """Convert a WebReadResult into a compact dict for LLM context."""
-    content = result.markdown or result.text or ""
+    content = result.markdown or result.text
+    if not content and result.html:
+        extracted = extract_text_bs4(result.html)
+        content = extracted or ""
     return {
         "url": result.url,
         "title": result.title,

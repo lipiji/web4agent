@@ -57,7 +57,7 @@ def extract_text_bs4(html: str) -> str | None:
         from bs4 import BeautifulSoup
 
         soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "noscript", "nav", "footer", "header"]):
+        for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "aside", "form"]):
             tag.decompose()
         return soup.get_text(separator="\n", strip=True)
     except Exception as exc:

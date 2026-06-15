@@ -409,7 +409,7 @@ class TestReadDdg:
         assert "html.duckduckgo.com" in call_kwargs[0][0]
 
     @pytest.mark.asyncio
-    async def test_query_includes_url(self):
+    async def test_query_extracts_domain_and_keywords(self):
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -423,4 +423,8 @@ class TestReadDdg:
 
         call_kwargs = mock_client.post.call_args[1]
         data = call_kwargs.get("data", {})
-        assert "https://example.com/target" in data.get("q", "")
+        query = data.get("q", "")
+        assert "example.com" in query
+        assert "target" in query
+        # Should NOT contain the full raw URL (scheme, slashes)
+        assert "https://" not in query

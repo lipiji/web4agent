@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
-import urllib.parse
 from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
@@ -24,6 +24,18 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://duckduckgo.com/",
 }
+
+
+def _url_to_query(url: str) -> str:
+    """Extract domain + path keywords from a URL to form a DDG search query."""
+    parsed = urlparse(url)
+    host = _norm_host(parsed.netloc)
+    path = unquote(parsed.path.strip("/"))
+    parts = re.split(r"[/\-_+.,;:%#!&?=]+", path)
+    keywords = [w.strip() for w in parts if len(w.strip()) > 2 and not w.strip().isdigit()]
+    if not keywords:
+        return host or url
+    return f"{host} {' '.join(keywords[:5])}"
 
 
 def _norm_host(host: str) -> str:
@@ -114,9 +126,11 @@ async def read_ddg(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
             timeout=httpx.Timeout(timeout),
             follow_redirects=True,
         ) as client:
+            query = _url_to_query(url)
+            logger.debug("ddg: searching for %r (from %s)", query, url)
             response = await client.post(
                 _DDG_HTML,
-                data={"q": url, "b": "", "kl": "us-en"},
+                data={"q": query, "b": "", "kl": "us-en"},
             )
             elapsed_ms = int((time.monotonic() - start) * 1000)
 
