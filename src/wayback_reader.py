@@ -18,7 +18,7 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-_CDX_API = "http://web.archive.org/cdx/search/cdx"
+_CDX_API = "https://web.archive.org/cdx/search/cdx"
 _WAYBACK_BASE = "https://web.archive.org/web"
 
 _HEADERS = {

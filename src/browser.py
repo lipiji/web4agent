@@ -101,6 +101,11 @@ class _BrowserManager:
     async def _ensure_browser(self) -> Any:
         async with self._lock:
             if self._browser is None or not self._browser.is_connected():
+                if self._playwright is not None:
+                    try:
+                        await self._playwright.stop()
+                    except Exception:
+                        pass
                 async_playwright = _import_playwright()
                 self._playwright = await async_playwright().start()
                 self._browser = await self._playwright.chromium.launch(

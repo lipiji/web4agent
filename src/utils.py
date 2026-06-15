@@ -40,13 +40,24 @@ def truncate(text: str | None, max_chars: int) -> str | None:
 
 
 def extract_title_bs4(html: str) -> str | None:
-    """Extract page <title> using BeautifulSoup."""
+    """Extract page title — tries <title>, then og:title, then first h1."""
     try:
         from bs4 import BeautifulSoup
 
         soup = BeautifulSoup(html, "html.parser")
         tag = soup.find("title")
-        return tag.get_text(strip=True) if tag else None
+        if tag:
+            return tag.get_text(strip=True)
+        og = soup.find("meta", attrs={"property": "og:title"})
+        if og and og.get("content", "").strip():
+            return og["content"].strip()
+        twitter = soup.find("meta", attrs={"name": "twitter:title"})
+        if twitter and twitter.get("content", "").strip():
+            return twitter["content"].strip()
+        h1 = soup.find("h1")
+        if h1:
+            return h1.get_text(strip=True)
+        return None
     except Exception:
         return None
 
