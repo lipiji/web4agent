@@ -169,7 +169,7 @@ async def read_wayback(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResul
 
     except Exception as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
-        error = type(exc).__name__
+        error = f"{type(exc).__name__}: {exc}"
         logger.warning("read_wayback error %s: %s", url, exc)
         return WebReadResult(
             url=url,

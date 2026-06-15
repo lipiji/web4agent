@@ -342,8 +342,7 @@ class TestReadWayback:
         with patch("web4agent.wayback_reader.httpx.AsyncClient", return_value=mock_client):
             result = await read_wayback("http://example.com/")
 
-        # Error should be just the type name, not the full message (to avoid leaking details)
-        assert result.error == "RuntimeError"
+        assert result.error is not None and result.error.startswith("RuntimeError")
 
     # ── content extraction fallback ───────────────────────────────────────────
 

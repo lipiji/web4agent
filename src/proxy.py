@@ -70,12 +70,15 @@ class ProxyRotator:
 
     def mark_failed(self, proxy_url: str) -> None:
         """Increment failure count; disable the proxy after repeated failures."""
-        for s in self._slots:
+        for i, s in enumerate(self._slots):
             if s.url == proxy_url:
                 s.failures += 1
                 if s.failures >= _FAILURE_THRESHOLD:
                     s.active = False
                     logger.warning("Proxy disabled (%d failures): %s", _FAILURE_THRESHOLD, proxy_url)
+                    # Reset cursor so it stays in the remaining active range.
+                    if i <= self._cursor:
+                        self._cursor = 0
                 return
 
     def mark_success(self, proxy_url: str) -> None:

@@ -184,13 +184,15 @@ async def read_browser(
                 status_code = response.status if response else None
 
                 # Trigger lazy-loaded content by scrolling incrementally.
+                # Cap at 60 iterations (~4.8 s) so dynamic pages don't loop forever.
                 await page.evaluate(
                     """() => new Promise(resolve => {
-                        let y = 0;
+                        let steps = 0;
+                        const MAX_STEPS = 60;
                         const tick = setInterval(() => {
                             window.scrollBy(0, 300);
-                            y += 300;
-                            if (y >= document.body.scrollHeight) {
+                            steps++;
+                            if (steps >= MAX_STEPS || window.scrollY + window.innerHeight >= document.body.scrollHeight) {
                                 clearInterval(tick);
                                 resolve();
                             }
@@ -206,18 +208,19 @@ async def read_browser(
                 try:
                     import trafilatura
 
-                    text = trafilatura.extract(html, include_links=False)
+                    text = trafilatura.extract(html, include_links=False, include_images=False)
+                    traf_md = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=False)
                     meta = trafilatura.extract_metadata(html)
                     title = meta.title if meta else None
                 except Exception:
-                    text = title = None
+                    text = traf_md = title = None
 
                 if not text:
                     text = extract_text_bs4(html)
                 if not title:
                     title = extract_title_bs4(html)
 
-                markdown = html_to_markdown(html)
+                markdown = traf_md or html_to_markdown(html)
                 metadata: dict = {}
 
                 if screenshot:
@@ -273,8 +276,9 @@ async def read_browser(
                     elapsed_ms=elapsed_ms,
                 )
 
-    except RuntimeError as exc:
-        error = str(exc)
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        logger.warning("read_browser outer error %s: %s", url, error)
         return WebReadResult(
             url=url,
             success=False,

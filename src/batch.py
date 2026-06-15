@@ -59,8 +59,8 @@ async def read_many(
     semaphore = asyncio.Semaphore(concurrency)
 
     async def _fetch(url: str) -> WebReadResult:
-        proxy = rotator.next() if rotator else None
         async with semaphore:
+            proxy = rotator.next() if rotator else None
             try:
                 result = await read_url(url, strategy=strategy, proxy=proxy)
                 if proxy:

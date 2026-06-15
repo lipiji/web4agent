@@ -8,7 +8,8 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from .config import DEFAULT_TIMEOUT, USER_AGENT
+from .config import DEFAULT_TIMEOUT
+from .fast import _browser_headers
 
 logger = logging.getLogger(__name__)
 
@@ -52,14 +53,9 @@ async def discover_links(
     same_domain: If True, only return links whose hostname matches *url*.
     max_links:   Maximum number of links returned.
     """
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-    }
-
     try:
         async with httpx.AsyncClient(
-            headers=headers,
+            headers=_browser_headers(),
             timeout=httpx.Timeout(DEFAULT_TIMEOUT),
             follow_redirects=True,
             verify=False,

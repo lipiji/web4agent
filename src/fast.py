@@ -38,16 +38,18 @@ def _browser_headers() -> dict[str, str]:
         }
 
 
-def _trafilatura_extract(html: str) -> tuple[str | None, str | None]:
+def _trafilatura_extract(html: str) -> tuple[str | None, str | None, str | None]:
+    """Return (text, title, markdown). markdown uses trafilatura's own cleaner output."""
     try:
         import trafilatura
 
         text = trafilatura.extract(html, include_links=False, include_images=False)
+        markdown = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=False)
         meta = trafilatura.extract_metadata(html)
-        return text, (meta.title if meta else None)
+        return text, (meta.title if meta else None), markdown
     except Exception as exc:
         logger.debug("trafilatura failed: %s", exc)
-        return None, None
+        return None, None, None
 
 
 async def _curl_get(
@@ -122,14 +124,14 @@ async def read_fast(
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
 
-        text, title = _trafilatura_extract(html)
+        text, title, traf_markdown = _trafilatura_extract(html)
         if not text:
             logger.debug("trafilatura empty for %s, falling back to BS4", url)
             text = extract_text_bs4(html)
         if not title:
             title = extract_title_bs4(html)
 
-        markdown = html_to_markdown(html) if html else None
+        markdown = traf_markdown or (html_to_markdown(html) if html else None)
         success = status_code < 400 and bool(text)
 
         return WebReadResult(

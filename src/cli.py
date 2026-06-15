@@ -21,7 +21,7 @@ def _build_parser() -> argparse.ArgumentParser:
     read_parser.add_argument("url", help="Target URL")
     read_parser.add_argument(
         "--strategy",
-        choices=["auto", "fast", "crawl4ai", "browser"],
+        choices=["auto", "fast", "crawl4ai", "browser", "wayback", "ddg"],
         default="auto",
         help="Fetch strategy (default: auto)",
     )
@@ -36,7 +36,7 @@ def _build_parser() -> argparse.ArgumentParser:
     many_parser.add_argument("urls", nargs="+", help="Target URLs")
     many_parser.add_argument(
         "--strategy",
-        choices=["auto", "fast", "crawl4ai", "browser"],
+        choices=["auto", "fast", "crawl4ai", "browser", "wayback", "ddg"],
         default="auto",
         help="Fetch strategy (default: auto)",
     )

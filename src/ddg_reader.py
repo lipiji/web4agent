@@ -168,7 +168,7 @@ async def read_ddg(url: str, timeout: int = DEFAULT_TIMEOUT) -> WebReadResult:
 
     except Exception as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
-        error = type(exc).__name__
+        error = f"{type(exc).__name__}: {exc}"
         logger.warning("read_ddg error %s: %s", url, exc)
         return WebReadResult(
             url=url,

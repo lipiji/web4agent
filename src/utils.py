@@ -66,11 +66,21 @@ def extract_text_bs4(html: str) -> str | None:
 
 
 def html_to_markdown(html: str) -> str | None:
-    """Convert HTML to Markdown using markdownify."""
+    """Convert HTML to Markdown using markdownify, with boilerplate pre-stripped."""
     try:
         import markdownify
 
-        return markdownify.markdownify(html, heading_style="ATX", strip=["script", "style"])
+        source = html
+        try:
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(html, "html.parser")
+            for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "aside", "form"]):
+                tag.decompose()
+            source = str(soup)
+        except Exception:
+            pass
+        return markdownify.markdownify(source, heading_style="ATX", strip=["script", "style"])
     except Exception as exc:
         logger.debug("markdownify failed: %s", exc)
         return None

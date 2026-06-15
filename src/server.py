@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 try:
     from fastapi import FastAPI
@@ -22,15 +22,18 @@ from .router import read_url
 
 # ── Request / Response schemas ─────────────────────────────────────────────────
 
+_Strategy = Literal["auto", "fast", "crawl4ai", "browser", "wayback", "ddg"]
+
+
 class ReadRequest(_BaseModel):
     url: str
-    strategy: str = "auto"
+    strategy: _Strategy = "auto"
 
 
 class ReadManyRequest(_BaseModel):
     urls: list[str]
     concurrency: int = 10
-    strategy: str = "auto"
+    strategy: _Strategy = "auto"
 
 
 class DiscoverLinksRequest(_BaseModel):

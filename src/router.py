@@ -35,8 +35,11 @@ def _should_degrade(result: WebReadResult) -> bool:
 def _merge_attempts(base: WebReadResult, extra: WebReadResult) -> WebReadResult:
     """Combine attempts from two results, prefer extra if it succeeded."""
     combined_attempts = base.attempts + extra.attempts
-    winner = extra if extra.success else base
-    return winner.model_copy(update={"attempts": combined_attempts})
+    if extra.success:
+        return extra.model_copy(update={"attempts": combined_attempts})
+    # Keep the best non-error result; propagate error from extra if base has none.
+    error = base.error or extra.error
+    return base.model_copy(update={"attempts": combined_attempts, "error": error})
 
 
 async def read_url(
