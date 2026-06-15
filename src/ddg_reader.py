@@ -38,9 +38,11 @@ def _url_to_query(url: str) -> str:
     path = unquote(parsed.path.strip("/"))
     parts = re.split(r"[/\-_+.,;:%#!&?=]+", path)
     keywords = [w.strip() for w in parts if len(w.strip()) > 2 and not w.strip().isdigit()]
-    if not keywords:
-        return host or url
-    return f"{host} {' '.join(keywords[:5])}"
+    if host and keywords:
+        return f"{host} {' '.join(keywords[:5])}"
+    if keywords:
+        return " ".join(keywords[:5])
+    return host or url
 
 
 def _extract_href_host(a_tag) -> str:

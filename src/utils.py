@@ -8,6 +8,8 @@ import re
 
 logger = logging.getLogger(__name__)
 
+_BOILERPLATE_TAGS = ["script", "style", "noscript", "nav", "footer", "header", "aside", "form"]
+
 
 def utc_now_iso() -> str:
     """Return current UTC time as ISO-8601 string."""
@@ -79,7 +81,7 @@ def extract_text_bs4(html: str) -> str | None:
         from bs4 import BeautifulSoup
 
         soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "aside", "form"]):
+        for tag in soup(_BOILERPLATE_TAGS):
             tag.decompose()
         return soup.get_text(separator="\n", strip=True)
     except Exception as exc:
@@ -97,7 +99,7 @@ def html_to_markdown(html: str) -> str | None:
             from bs4 import BeautifulSoup
 
             soup = BeautifulSoup(html, "html.parser")
-            for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "aside", "form"]):
+            for tag in soup(_BOILERPLATE_TAGS):
                 tag.decompose()
             source = str(soup)
         except Exception:
