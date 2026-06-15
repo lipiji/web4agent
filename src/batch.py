@@ -16,6 +16,8 @@ _STRATEGY_DEFAULT_CONCURRENCY = {
     "fast": FAST_CONCURRENCY,
     "crawl4ai": 10,
     "browser": BROWSER_CONCURRENCY,
+    "wayback": 5,
+    "ddg": 5,
     "auto": 10,
 }
 

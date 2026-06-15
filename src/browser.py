@@ -190,10 +190,11 @@ async def read_browser(
                 response = await page.goto(url, wait_until=wait_until, timeout=timeout * 1000)
                 status_code = response.status if response else None
 
-                # Trigger lazy-loaded content by scrolling incrementally.
-                # Cap at 60 iterations (~4.8 s) so dynamic pages don't loop forever.
+                # Scroll from top to capture all lazy content (fragment anchor may have
+                # scrolled mid-page). Cap at 60 iterations (~4.8 s) for dynamic pages.
                 await page.evaluate(
                     """() => new Promise(resolve => {
+                        window.scrollTo(0, 0);
                         let steps = 0;
                         const MAX_STEPS = 60;
                         const tick = setInterval(() => {

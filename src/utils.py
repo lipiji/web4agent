@@ -40,7 +40,7 @@ def truncate(text: str | None, max_chars: int) -> str | None:
     lookback = max(max_chars // 6, 40)
     start = max_chars - lookback
     window = text[start:max_chars]
-    for pat in (r"\n\s*\n", r"\n", r"[.?!]\s", r"\s"):
+    for pat in (r"\n\s*\n", r"\n", r"[.?!。！？]\s", r"[.?!。！？]", r"\s"):
         m = None
         for match in re.finditer(pat, window):
             m = match
