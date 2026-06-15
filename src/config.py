@@ -4,11 +4,29 @@ from __future__ import annotations
 
 import os
 
-DEFAULT_TIMEOUT: int = int(os.environ.get("WRT_TIMEOUT", "20"))
-FAST_CONCURRENCY: int = int(os.environ.get("WRT_FAST_CONCURRENCY", "50"))
-CRAWL4AI_CONCURRENCY: int = int(os.environ.get("WRT_CRAWL4AI_CONCURRENCY", "10"))
-BROWSER_CONCURRENCY: int = int(os.environ.get("WRT_BROWSER_CONCURRENCY", "3"))
-MIN_TEXT_LENGTH: int = int(os.environ.get("WRT_MIN_TEXT_LENGTH", "300"))
+
+def _env_int(key: str, default: int) -> int:
+    val = os.environ.get(key, "")
+    if not val:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+
+def _env_bool(key: str, default: bool) -> bool:
+    val = os.environ.get(key, "").strip().lower()
+    if not val:
+        return default
+    return val in ("true", "1", "yes", "on")
+
+
+DEFAULT_TIMEOUT: int = _env_int("WRT_TIMEOUT", 20)
+FAST_CONCURRENCY: int = _env_int("WRT_FAST_CONCURRENCY", 50)
+CRAWL4AI_CONCURRENCY: int = _env_int("WRT_CRAWL4AI_CONCURRENCY", 10)
+BROWSER_CONCURRENCY: int = _env_int("WRT_BROWSER_CONCURRENCY", 3)
+MIN_TEXT_LENGTH: int = _env_int("WRT_MIN_TEXT_LENGTH", 300)
 
 USER_AGENT: str = os.environ.get(
     "WRT_USER_AGENT",
@@ -17,8 +35,6 @@ USER_AGENT: str = os.environ.get(
     "Chrome/124.0.0.0 Safari/537.36",
 )
 
-# Max content length returned to agent context (characters)
-AGENT_MAX_CONTENT_CHARS: int = int(os.environ.get("WRT_AGENT_MAX_CONTENT_CHARS", "8000"))
+AGENT_MAX_CONTENT_CHARS: int = _env_int("WRT_AGENT_MAX_CONTENT_CHARS", 8000)
 
-# Whether to use Wayback Machine + DuckDuckGo as final fallbacks in auto mode
-USE_EXTENDED_FALLBACKS: bool = os.environ.get("WRT_EXTENDED_FALLBACKS", "true").lower() == "true"
+USE_EXTENDED_FALLBACKS: bool = _env_bool("WRT_EXTENDED_FALLBACKS", True)

@@ -12,6 +12,8 @@ from .utils import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
+_VALID_STRATEGIES = {"fast", "crawl4ai", "browser", "wayback", "ddg", "auto"}
+
 _STRATEGY_DEFAULT_CONCURRENCY = {
     "fast": FAST_CONCURRENCY,
     "crawl4ai": 10,
@@ -42,8 +44,12 @@ async def read_many(
                  Format: ``["http://host:port", "socks5://host:port"]``
     proxy_mode:  ``"round_robin"`` (default) or ``"random"``.
     """
+    if strategy not in _VALID_STRATEGIES:
+        raise ValueError(f"Unknown strategy {strategy!r}. Choose from {_VALID_STRATEGIES}.")
+
     if concurrency is None:
         concurrency = _STRATEGY_DEFAULT_CONCURRENCY.get(strategy, 10)
+    concurrency = max(concurrency, 1)
 
     rotator = None
     if proxies:
