@@ -9,10 +9,12 @@
 
 | Function | Description |
 |---|---|
-| `read_url` | Auto-degradation: fast → crawl4ai → browser |
-| `read_fast` | httpx + trafilatura, BeautifulSoup fallback |
-| `read_browser` | Playwright headless Chromium, reused browser instance |
+| `read_url` | Auto-degradation: fast → crawl4ai → browser → wayback → ddg |
+| `read_fast` | curl_cffi TLS impersonation + realistic headers; httpx fallback |
+| `read_browser` | Stealth headless Chromium (patchright); canvas noise; Playwright fallback |
 | `read_crawl4ai` | Crawl4AI LLM-friendly Markdown output |
+| `read_wayback` | Wayback Machine archive fallback — no API key needed |
+| `read_ddg` | DuckDuckGo snippet fallback — no API key needed |
 | `read_many` | Concurrent batch fetch with deduplication |
 | `discover_links` | Extract, normalize, and deduplicate hrefs |
 | `agent_read_url` | Single-URL fetch returning a slim LLM-ready dict |
@@ -32,11 +34,14 @@ pip install web4agent
 **With optional extras:**
 
 ```bash
-# Playwright (JS-rendered pages)
-pip install "web4agent[browser]"
-playwright install chromium
+# TLS impersonation + realistic headers (bypass most bot-detection without a browser)
+pip install "web4agent[stealth]"
 
-# Crawl4AI strategy
+# Headless browser with stealth context (JS-heavy pages, Cloudflare-protected sites)
+pip install "web4agent[browser]"
+patchright install chromium
+
+# Crawl4AI strategy (LLM-optimised Markdown)
 pip install "web4agent[crawl4ai]"
 
 # FastAPI server
@@ -44,7 +49,7 @@ pip install "web4agent[server]"
 
 # Everything
 pip install "web4agent[all]"
-playwright install chromium
+patchright install chromium
 ```
 
 **From source (development):**
@@ -187,7 +192,7 @@ Set via environment variables (or a `.env` file):
 ## FastAPI Server
 
 ```bash
-pip install -e ".[server]"
+pip install "web4agent[server]"
 uvicorn web4agent.server:app --host 0.0.0.0 --port 8000
 ```
 

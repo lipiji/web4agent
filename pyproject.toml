@@ -9,7 +9,7 @@ description = "Free, open-source, async-first web scraping toolkit for LLM agent
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-keywords = ["web scraping", "llm", "agent", "async", "httpx", "trafilatura"]
+keywords = ["web scraping", "llm", "agent", "async", "curl_cffi", "trafilatura", "stealth"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -32,8 +32,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+stealth = [
+    "curl-cffi>=0.7",
+    "browserforge>=1.2",
+]
 browser = [
-    "playwright>=1.44",
+    "patchright>=0.9",
+    "browserforge>=1.2",
 ]
 crawl4ai = [
     "crawl4ai>=0.3",
@@ -43,7 +48,7 @@ server = [
     "uvicorn[standard]>=0.29",
 ]
 all = [
-    "web4agent[browser,crawl4ai,server]",
+    "web4agent[stealth,browser,crawl4ai,server]",
 ]
 dev = [
     "pytest>=8",
