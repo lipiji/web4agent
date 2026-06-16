@@ -285,3 +285,185 @@ class TestCloseBrowser:
             from web4agent.browser import close_browser
             await close_browser()
         mock_close.assert_called_once()
+
+
+# ── _BrowserManager internals ─────────────────────────────────────────────────
+
+
+class TestBrowserManager:
+    def _make_pw_mocks(self):
+        mock_browser = MagicMock()
+        mock_browser.is_connected = MagicMock(return_value=True)
+
+        mock_pw = AsyncMock()
+        mock_pw.chromium.launch = AsyncMock(return_value=mock_browser)
+
+        mock_pw_cm = MagicMock()
+        mock_pw_cm.start = AsyncMock(return_value=mock_pw)
+
+        mock_async_playwright_fn = MagicMock(return_value=mock_pw_cm)
+        return mock_async_playwright_fn, mock_pw, mock_browser
+
+    @pytest.mark.asyncio
+    async def test_ensure_browser_launches_when_none(self):
+        from web4agent.browser import _BrowserManager
+        manager = _BrowserManager()
+        mock_fn, mock_pw, mock_browser = self._make_pw_mocks()
+
+        with patch("web4agent.browser._import_playwright", return_value=mock_fn):
+            browser = await manager._ensure_browser()
+
+        assert browser is mock_browser
+        mock_pw.chromium.launch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_ensure_browser_reconnects_when_disconnected(self):
+        from web4agent.browser import _BrowserManager
+        manager = _BrowserManager()
+
+        old_playwright = AsyncMock()
+        old_playwright.stop = AsyncMock()
+        old_browser = MagicMock()
+        old_browser.is_connected = MagicMock(return_value=False)
+        manager._playwright = old_playwright
+        manager._browser = old_browser
+
+        mock_fn, _, new_browser = self._make_pw_mocks()
+
+        with patch("web4agent.browser._import_playwright", return_value=mock_fn):
+            browser = await manager._ensure_browser()
+
+        old_playwright.stop.assert_called_once()
+        assert browser is new_browser
+
+    @pytest.mark.asyncio
+    async def test_ensure_browser_handles_playwright_stop_exception(self):
+        """Exception from old playwright.stop() should be swallowed and reconnect succeeds."""
+        from web4agent.browser import _BrowserManager
+        manager = _BrowserManager()
+
+        old_playwright = AsyncMock()
+        old_playwright.stop = AsyncMock(side_effect=Exception("stop failed"))
+        old_browser = MagicMock()
+        old_browser.is_connected = MagicMock(return_value=False)
+        manager._playwright = old_playwright
+        manager._browser = old_browser
+
+        mock_fn, _, new_browser = self._make_pw_mocks()
+
+        with patch("web4agent.browser._import_playwright", return_value=mock_fn):
+            browser = await manager._ensure_browser()
+
+        assert browser is new_browser
+
+    @pytest.mark.asyncio
+    async def test_ensure_browser_reuses_connected_browser(self):
+        from web4agent.browser import _BrowserManager
+        manager = _BrowserManager()
+
+        existing = MagicMock()
+        existing.is_connected = MagicMock(return_value=True)
+        manager._browser = existing
+
+        browser = await manager._ensure_browser()
+        assert browser is existing
+
+    @pytest.mark.asyncio
+    async def test_close_clears_browser_and_playwright(self):
+        from web4agent.browser import _BrowserManager
+        manager = _BrowserManager()
+
+        mock_browser = AsyncMock()
+        mock_browser.close = AsyncMock()
+        mock_playwright = AsyncMock()
+        mock_playwright.stop = AsyncMock()
+        manager._browser = mock_browser
+        manager._playwright = mock_playwright
+
+        await manager.close()
+
+        mock_browser.close.assert_called_once()
+        mock_playwright.stop.assert_called_once()
+        assert manager._browser is None
+        assert manager._playwright is None
+
+    @pytest.mark.asyncio
+    async def test_close_when_nothing_open(self):
+        from web4agent.browser import _BrowserManager
+        manager = _BrowserManager()
+        await manager.close()  # should not raise
+
+
+# ── read_browser fallback paths ───────────────────────────────────────────────
+
+
+class TestReadBrowserFallbacks:
+    @pytest.mark.asyncio
+    async def test_trafilatura_exception_falls_back_gracefully(self):
+        mock_browser, _, _ = _make_playwright_mocks()
+
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            with patch("trafilatura.extract", side_effect=Exception("traf broke")):
+                from web4agent.browser import read_browser
+                result = await read_browser("https://example.com/")
+
+        assert isinstance(result, WebReadResult)
+
+    @pytest.mark.asyncio
+    async def test_bs4_text_fallback_when_trafilatura_returns_none(self):
+        mock_browser, _, _ = _make_playwright_mocks()
+
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            with patch("trafilatura.extract", return_value=None):
+                with patch("trafilatura.extract_metadata", return_value=None):
+                    from web4agent.browser import read_browser
+                    result = await read_browser("https://example.com/")
+
+        assert isinstance(result, WebReadResult)
+
+    @pytest.mark.asyncio
+    async def test_trafilatura_md_exception_handled(self):
+        """When markdown extraction raises, traf_md stays None and html_to_markdown is used."""
+        mock_browser, _, _ = _make_playwright_mocks()
+
+        extract_calls = {"n": 0}
+
+        def extract_side_effect(*a, **kw):
+            n = extract_calls["n"]
+            extract_calls["n"] += 1
+            if n == 0:
+                return "Some extracted text content here"
+            raise Exception("md boom")
+
+        import trafilatura as traf_mod
+
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            with patch.object(traf_mod, "extract", side_effect=extract_side_effect):
+                with patch.object(traf_mod, "extract_metadata", return_value=None):
+                    from web4agent.browser import read_browser
+                    result = await read_browser("https://example.com/")
+
+        assert isinstance(result, WebReadResult)
+
+
+# ── _get_ua browserforge path ─────────────────────────────────────────────────
+
+
+class TestGetUaBrowserforge:
+    def test_returns_browserforge_ua_when_available(self):
+        fake_ua = "Mozilla/5.0 (Windows NT 10.0) Chrome/120 BrowserForge"
+        fake_hdrs = {"User-Agent": fake_ua}
+        mock_gen = MagicMock()
+        mock_gen.generate.return_value = fake_hdrs
+        mock_class = MagicMock(return_value=mock_gen)
+
+        import sys
+        fake_bf_module = MagicMock()
+        fake_bf_module.HeaderGenerator = mock_class
+
+        with patch.dict(sys.modules, {"browserforge": MagicMock(), "browserforge.headers": fake_bf_module}):
+            from web4agent.browser import _get_ua
+            ua = _get_ua()
+
+        assert isinstance(ua, str)
+        assert len(ua) > 0

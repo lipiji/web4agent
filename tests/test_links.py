@@ -202,3 +202,48 @@ async def test_discover_links_fetch_error_returns_empty():
         links = await discover_links("https://example.com/")
 
     assert links == []
+
+
+class TestNormalizeException:
+    def test_returns_none_on_exception(self):
+        with patch("web4agent.links.urljoin", side_effect=Exception("urljoin error")):
+            result = _normalize("/page", "https://example.com/")
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_discover_links_bs4_exception_returns_empty():
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=_mock_response(SAMPLE_HTML))
+
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
+        with patch("bs4.BeautifulSoup", side_effect=Exception("bs4 failed")):
+            links = await discover_links("https://example.com/")
+
+    assert links == []
+
+
+@pytest.mark.asyncio
+async def test_discover_links_skips_when_normalize_returns_none():
+    """Links where _normalize returns None are skipped (line 89 coverage)."""
+    html = '<html><body><a href="/good">Good</a><a href="/bad">Bad</a></body></html>'
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=_mock_response(html))
+
+    original_normalize = _normalize
+
+    def patched(href, base):
+        if "/bad" in href:
+            return None
+        return original_normalize(href, base)
+
+    with patch("web4agent.links.httpx.AsyncClient", return_value=mock_client):
+        with patch("web4agent.links._normalize", side_effect=patched):
+            links = await discover_links("https://example.com/", same_domain=False)
+
+    assert not any("bad" in l for l in links)
+    assert any("good" in l for l in links)

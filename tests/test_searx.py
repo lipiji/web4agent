@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from web4agent.searx import _select_instances, search_searx
+from web4agent.models import FetchAttempt, WebReadResult
+from web4agent.searx import _select_instances, search_and_extract, search_searx
+from web4agent.utils import utc_now_iso
 
 _SEARX_RESPONSE = {
     "query": "python web scraping",
@@ -154,3 +156,87 @@ class TestSearchSearx:
         assert results[0]["snippet"] == ""
         assert results[0]["engine"] == ""
         assert results[0]["score"] is None
+
+
+# ── search_and_extract ────────────────────────────────────────────────────────
+
+
+_SEARCH_HITS = [
+    {
+        "title": "Beautiful Soup Docs",
+        "url": "https://www.crummy.com/",
+        "snippet": "HTML parsing library",
+        "engine": "google",
+        "score": 0.9,
+    }
+]
+
+
+def _make_page(url: str, success: bool = True, text: str | None = "Body content", markdown: str | None = "# Body"):
+    return WebReadResult(
+        url=url,
+        text=text,
+        markdown=markdown,
+        success=success,
+        strategy_used="fast",
+        fetched_at=utc_now_iso(),
+        attempts=[FetchAttempt(strategy="fast", success=success)],
+    )
+
+
+class TestSearchAndExtract:
+    @pytest.mark.asyncio
+    async def test_returns_expected_keys(self):
+        page = _make_page("https://www.crummy.com/")
+        with patch("web4agent.searx.search_searx", AsyncMock(return_value=_SEARCH_HITS)):
+            with patch("web4agent.batch.read_many", AsyncMock(return_value=[page])):
+                result = await search_and_extract("python")
+        for key in ("query", "results", "hits", "extracted", "elapsed_ms"):
+            assert key in result
+
+    @pytest.mark.asyncio
+    async def test_empty_search_results(self):
+        with patch("web4agent.searx.search_searx", AsyncMock(return_value=[])):
+            result = await search_and_extract("python")
+        assert result["hits"] == 0
+        assert result["extracted"] == 0
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_extracted_uses_markdown(self):
+        page = _make_page("https://www.crummy.com/", markdown="# Real Markdown")
+        with patch("web4agent.searx.search_searx", AsyncMock(return_value=_SEARCH_HITS)):
+            with patch("web4agent.batch.read_many", AsyncMock(return_value=[page])):
+                result = await search_and_extract("python")
+        assert result["results"][0]["content"] == "# Real Markdown"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_snippet_when_extraction_fails(self):
+        page = _make_page("https://www.crummy.com/", success=False, text=None, markdown=None)
+        with patch("web4agent.searx.search_searx", AsyncMock(return_value=_SEARCH_HITS)):
+            with patch("web4agent.batch.read_many", AsyncMock(return_value=[page])):
+                result = await search_and_extract("python")
+        assert result["results"][0]["content"] == "HTML parsing library"
+
+    @pytest.mark.asyncio
+    async def test_html_fallback_for_body(self):
+        page = WebReadResult(
+            url="https://www.crummy.com/",
+            html="<html><body><p>HTML extracted</p></body></html>",
+            success=True,
+            strategy_used="fast",
+            fetched_at=utc_now_iso(),
+            attempts=[FetchAttempt(strategy="fast", success=True)],
+        )
+        with patch("web4agent.searx.search_searx", AsyncMock(return_value=_SEARCH_HITS)):
+            with patch("web4agent.batch.read_many", AsyncMock(return_value=[page])):
+                result = await search_and_extract("python")
+        assert "HTML extracted" in result["results"][0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_elapsed_ms_non_negative(self):
+        page = _make_page("https://www.crummy.com/")
+        with patch("web4agent.searx.search_searx", AsyncMock(return_value=_SEARCH_HITS)):
+            with patch("web4agent.batch.read_many", AsyncMock(return_value=[page])):
+                result = await search_and_extract("python")
+        assert result["elapsed_ms"] >= 0

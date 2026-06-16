@@ -243,3 +243,9 @@ class TestReadMany:
 
         assert results[0].success is False
         real_rotator.mark_failed.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_invalid_strategy_raises_value_error(self):
+        from web4agent.batch import read_many
+        with pytest.raises(ValueError, match="Unknown strategy"):
+            await read_many(["https://a.com"], strategy="invalid_strategy")

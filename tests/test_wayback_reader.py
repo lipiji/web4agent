@@ -360,3 +360,14 @@ class TestReadWayback:
                 result = await read_wayback("http://example.com/")
         # BS4 fallback should produce some text
         assert result.text is None or isinstance(result.text, str)
+
+    @pytest.mark.asyncio
+    async def test_trafilatura_exception_falls_back_to_bs4(self):
+        """When trafilatura raises, the except block sets text=None and bs4 runs."""
+        with _patch_wayback_client(
+            _make_cdx_response(),
+            _make_fetch_response(),
+        ):
+            with patch("trafilatura.extract", side_effect=Exception("traf crash")):
+                result = await read_wayback("http://example.com/")
+        assert isinstance(result, WebReadResult)

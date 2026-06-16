@@ -13,6 +13,7 @@ from web4agent.ddg_reader import (
     _norm_host,
     _parse_ddg_results,
     _resolve_ddg_href,
+    _url_to_query,
     read_ddg,
     search_ddg,
 )
@@ -507,3 +508,92 @@ class TestSearchDdg:
         from bs4 import BeautifulSoup
         soup = BeautifulSoup('<a class="other">no href</a>', "html.parser")
         assert _resolve_ddg_href(soup.find("a")) == ""
+
+    @pytest.mark.asyncio
+    async def test_empty_on_bs4_parse_exception(self):
+        with _mock_ddg_client(_DDG_HTML_MULTI):
+            with patch("bs4.BeautifulSoup", side_effect=Exception("parse failed")):
+                results = await search_ddg("test")
+        assert results == []
+
+    @pytest.mark.asyncio
+    async def test_skips_result_with_no_url(self):
+        """Result nodes where _resolve_ddg_href returns '' are skipped."""
+        html = _make_ddg_html([
+            {"title": "No URL Result", "href": "https://valid.com/", "snippet": GOOD_SNIPPET},
+        ])
+        from web4agent.ddg_reader import _resolve_ddg_href as orig_resolve
+
+        call_count = {"n": 0}
+
+        def patched_resolve(a_tag):
+            if call_count["n"] == 0:
+                call_count["n"] += 1
+                return ""  # simulate no URL for first result
+            return orig_resolve(a_tag)
+
+        with _mock_ddg_client(html):
+            with patch("web4agent.ddg_reader._resolve_ddg_href", side_effect=patched_resolve):
+                results = await search_ddg("test")
+
+        assert results == []
+
+
+class TestUrlToQuery:
+    def test_host_and_keywords(self):
+        result = _url_to_query("https://example.com/page/about/python")
+        assert "example.com" in result
+        assert "python" in result
+
+    def test_keywords_only_no_host(self):
+        result = _url_to_query("/page/about/python-tutorial")
+        assert "example.com" not in result
+        assert "python" in result or "tutorial" in result
+
+    def test_host_only_no_keywords(self):
+        result = _url_to_query("https://example.com/")
+        assert "example.com" in result
+
+    def test_fallback_to_raw_url(self):
+        result = _url_to_query("ftp://a.b")
+        assert len(result) > 0
+
+
+class TestExtractHrefHostException:
+    def test_exception_returns_empty(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup('<a href="https://example.com/">link</a>', "html.parser")
+        a = soup.find("a")
+        with patch("web4agent.ddg_reader.urlparse", side_effect=Exception("urlparse broke")):
+            result = _extract_href_host(a)
+        assert result == ""
+
+
+class TestResolveDdgHrefException:
+    def test_exception_returns_empty(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup('<a href="https://example.com/">link</a>', "html.parser")
+        a = soup.find("a")
+        with patch("web4agent.ddg_reader.urlparse", side_effect=Exception("parse broke")):
+            result = _resolve_ddg_href(a)
+        assert result == ""
+
+
+class TestParseDdgResultsEdgeCases:
+    def test_result_without_snippet_tag_is_skipped(self):
+        html = """
+        <html><body>
+          <div class="result">
+            <h2 class="result__title"><a class="result__a" href="/l/?uddg=https%3A%2F%2Fex.com%2F">Title</a></h2>
+          </div>
+        </body></html>
+        """
+        title, snippet, href = _parse_ddg_results(html, "https://ex.com/")
+        assert snippet is None
+
+    def test_bs4_exception_returns_none_triple(self):
+        with patch("bs4.BeautifulSoup", side_effect=Exception("bs4 broke")):
+            title, snippet, href = _parse_ddg_results("<html></html>", "https://ex.com/")
+        assert title is None
+        assert snippet is None
+        assert href is None

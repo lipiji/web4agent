@@ -169,6 +169,19 @@ class TestReadFast:
         # Either extractor returns something (or None for truly empty pages)
         assert result.text is None or isinstance(result.text, str)
 
+    @pytest.mark.asyncio
+    async def test_bs4_fallback_used_when_trafilatura_text_is_none(self):
+        """When _trafilatura_extract returns None text, BS4 fallback is called."""
+        import trafilatura as traf
+
+        with _patch_fetch(html=RICH_HTML):
+            with patch.object(traf, "extract", return_value=None):
+                with patch.object(traf, "extract_metadata", return_value=None):
+                    result = await read_fast("https://example.com/")
+
+        assert result.text is not None
+        assert len(result.text) > 0
+
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
@@ -271,3 +284,168 @@ class TestHttpxGet:
 
         call_kwargs = mock_cls.call_args[1]
         assert call_kwargs.get("proxy") == "http://p:8080"
+
+    @pytest.mark.asyncio
+    async def test_lookup_error_falls_back_to_resp_text(self):
+        """LookupError on unknown charset falls back to resp.text."""
+        import httpx
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = httpx.URL("https://example.com/")
+        mock_resp.headers = {"content-type": "text/html; charset=invalid-charset-xyz"}
+        mock_resp.content = MagicMock()
+        mock_resp.content.decode = MagicMock(side_effect=LookupError("unknown encoding"))
+        mock_resp.text = "<html>fallback text</html>"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            from web4agent.fast import _httpx_get
+            _, html, _ = await _httpx_get("https://example.com/", 20, None)
+
+        assert html == "<html>fallback text</html>"
+
+
+# ── _trafilatura_extract ───────────────────────────────────────────────────────
+
+
+class TestTrafilaturaExtract:
+    def test_import_error_returns_triple_none(self):
+        """When trafilatura is not installed, all three values are None."""
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "trafilatura":
+                raise ImportError("no trafilatura")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mock_import):
+            from web4agent.fast import _trafilatura_extract
+            text, title, markdown = _trafilatura_extract("<html><body>test</body></html>")
+
+        assert text is None
+        assert title is None
+        assert markdown is None
+
+    def test_text_extraction_exception_returns_none_text(self):
+        import trafilatura as traf
+        with patch.object(traf, "extract", side_effect=[Exception("boom"), None]):
+            with patch.object(traf, "extract_metadata", return_value=None):
+                from web4agent.fast import _trafilatura_extract
+                text, title, markdown = _trafilatura_extract("<html><body>hi</body></html>")
+        assert text is None
+
+    def test_metadata_exception_returns_none_title(self):
+        import trafilatura as traf
+        with patch.object(traf, "extract", return_value="Some text"):
+            with patch.object(traf, "extract_metadata", side_effect=Exception("meta broke")):
+                from web4agent.fast import _trafilatura_extract
+                _, title, _ = _trafilatura_extract("<html><body>hi</body></html>")
+        assert title is None
+
+    def test_markdown_exception_returns_none_markdown(self):
+        import trafilatura as traf
+
+        extract_calls = {"n": 0}
+
+        def extract_side_effect(*a, **kw):
+            n = extract_calls["n"]
+            extract_calls["n"] += 1
+            if n == 0:
+                return "Some text"
+            raise Exception("md broke")
+
+        with patch.object(traf, "extract", side_effect=extract_side_effect):
+            with patch.object(traf, "extract_metadata", return_value=None):
+                from web4agent.fast import _trafilatura_extract
+                _, _, markdown = _trafilatura_extract("<html><body>hi</body></html>")
+        assert markdown is None
+
+
+# ── _curl_get ─────────────────────────────────────────────────────────────────
+
+
+class TestCurlGet:
+    @pytest.mark.asyncio
+    async def test_returns_status_html_url(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<html>content</html>"
+        mock_resp.url = "https://example.com/"
+
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session.get = AsyncMock(return_value=mock_resp)
+
+        with patch("curl_cffi.requests.AsyncSession", return_value=mock_session):
+            from web4agent.fast import _curl_get
+            status, html, url = await _curl_get("https://example.com/", 20, None)
+
+        assert status == 200
+        assert "content" in html
+        assert url == "https://example.com/"
+
+    @pytest.mark.asyncio
+    async def test_proxy_map_with_proxy(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "hi"
+        mock_resp.url = "https://example.com/"
+
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session.get = AsyncMock(return_value=mock_resp)
+
+        with patch("curl_cffi.requests.AsyncSession", return_value=mock_session):
+            from web4agent.fast import _curl_get
+            await _curl_get("https://example.com/", 20, "http://proxy:8080")
+
+        call_kwargs = mock_session.get.call_args[1]
+        assert call_kwargs.get("proxies") == {"http": "http://proxy:8080", "https": "http://proxy:8080"}
+
+    @pytest.mark.asyncio
+    async def test_no_proxy_passes_none(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "hi"
+        mock_resp.url = "https://example.com/"
+
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session.get = AsyncMock(return_value=mock_resp)
+
+        with patch("curl_cffi.requests.AsyncSession", return_value=mock_session):
+            from web4agent.fast import _curl_get
+            await _curl_get("https://example.com/", 20, None)
+
+        call_kwargs = mock_session.get.call_args[1]
+        assert call_kwargs.get("proxies") is None
+
+
+# ── _browser_headers browserforge path ────────────────────────────────────────
+
+
+class TestBrowserHeadersBrowserforge:
+    def test_uses_browserforge_ua_when_available(self):
+        fake_hdrs = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/120 Fake"}
+        mock_gen = MagicMock()
+        mock_gen.generate.return_value = fake_hdrs
+        mock_class = MagicMock(return_value=mock_gen)
+
+        import sys
+        fake_bf_module = MagicMock()
+        fake_bf_module.HeaderGenerator = mock_class
+
+        with patch.dict(sys.modules, {"browserforge": MagicMock(), "browserforge.headers": fake_bf_module}):
+            # Reload forces re-execution of the import inside _browser_headers
+            from web4agent.fast import _browser_headers
+            hdrs = _browser_headers()
+
+        assert isinstance(hdrs, dict)

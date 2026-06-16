@@ -117,6 +117,23 @@ class TestAgentReadUrl:
             await agent_read_url("https://x.com", proxy="http://p:8080")
         mock.assert_called_once_with("https://x.com", strategy="auto", proxy="http://p:8080")
 
+    @pytest.mark.asyncio
+    async def test_html_fallback_in_slim_when_no_text_or_markdown(self):
+        """_slim() should extract via BS4 when markdown=None and text=None but html is set."""
+        r = WebReadResult(
+            url="https://x.com",
+            html="<html><body><p>Extracted from HTML</p></body></html>",
+            success=True,
+            strategy_used="fast",
+            fetched_at=utc_now_iso(),
+            attempts=[],
+        )
+        with patch("web4agent.agent.read_url", AsyncMock(return_value=r)):
+            from web4agent.agent import agent_read_url
+            result = await agent_read_url("https://x.com")
+        assert result["content"] is not None
+        assert "Extracted from HTML" in result["content"]
+
 
 class TestAgentReadUrls:
     @pytest.mark.asyncio
@@ -169,3 +186,104 @@ class TestAgentReadUrls:
         assert summary["total"] == 0
         assert summary["succeeded"] == 0
         assert summary["failed"] == 0
+
+
+class TestAgentSearch:
+    @pytest.mark.asyncio
+    async def test_returns_expected_keys(self):
+        hits = [{"url": "https://a.com", "title": "A", "snippet": "s"}]
+        page = _ok("https://a.com")
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=hits)):
+            with patch("web4agent.agent.read_many", AsyncMock(return_value=[page])):
+                from web4agent.agent import agent_search
+                result = await agent_search("python")
+        for key in ("query", "results", "hits", "extracted", "elapsed_ms", "search_backend"):
+            assert key in result
+
+    @pytest.mark.asyncio
+    async def test_ddg_used_first(self):
+        hits = [{"url": "https://a.com", "title": "A", "snippet": "s"}]
+        page = _ok("https://a.com")
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=hits)) as mock_ddg:
+            with patch("web4agent.searx.search_searx", AsyncMock()) as mock_sx:
+                with patch("web4agent.agent.read_many", AsyncMock(return_value=[page])):
+                    from web4agent.agent import agent_search
+                    result = await agent_search("python")
+        mock_ddg.assert_called_once()
+        mock_sx.assert_not_called()
+        assert result["search_backend"] == "ddg"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_searxng_when_ddg_empty(self):
+        hits = [{"url": "https://b.com", "title": "B", "snippet": "s"}]
+        page = _ok("https://b.com")
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=[])):
+            with patch("web4agent.searx.search_searx", AsyncMock(return_value=hits)):
+                with patch("web4agent.agent.read_many", AsyncMock(return_value=[page])):
+                    from web4agent.agent import agent_search
+                    result = await agent_search("python")
+        assert result["search_backend"] == "searxng"
+        assert result["hits"] == 1
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_results(self):
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=[])):
+            with patch("web4agent.searx.search_searx", AsyncMock(return_value=[])):
+                from web4agent.agent import agent_search
+                result = await agent_search("python")
+        assert result["hits"] == 0
+        assert result["extracted"] == 0
+        assert result["results"] == []
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_extracted_count_reflects_successes(self):
+        hits = [
+            {"url": "https://a.com", "title": "A", "snippet": "s"},
+            {"url": "https://b.com", "title": "B", "snippet": "s"},
+        ]
+        pages = [_ok("https://a.com"), _fail("https://b.com")]
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=hits)):
+            with patch("web4agent.agent.read_many", AsyncMock(return_value=pages)):
+                from web4agent.agent import agent_search
+                result = await agent_search("python")
+        assert result["extracted"] == 1
+        assert result["hits"] == 2
+
+    @pytest.mark.asyncio
+    async def test_uses_snippet_when_extraction_fails(self):
+        hit = {"url": "https://a.com", "title": "A", "snippet": "fallback snippet"}
+        page = _fail("https://a.com")
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=[hit])):
+            with patch("web4agent.agent.read_many", AsyncMock(return_value=[page])):
+                from web4agent.agent import agent_search
+                result = await agent_search("python")
+        assert result["results"][0]["content"] == "fallback snippet"
+
+    @pytest.mark.asyncio
+    async def test_html_fallback_for_content(self):
+        from web4agent.models import WebReadResult
+        hit = {"url": "https://a.com", "title": "A", "snippet": "s"}
+        page = WebReadResult(
+            url="https://a.com",
+            html="<html><body><p>HTML extracted content</p></body></html>",
+            success=True,
+            strategy_used="fast",
+            fetched_at=utc_now_iso(),
+            attempts=[],
+        )
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=[hit])):
+            with patch("web4agent.agent.read_many", AsyncMock(return_value=[page])):
+                from web4agent.agent import agent_search
+                result = await agent_search("python")
+        assert "HTML extracted content" in result["results"][0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_elapsed_ms_non_negative(self):
+        hits = [{"url": "https://a.com", "title": "A", "snippet": "s"}]
+        page = _ok("https://a.com")
+        with patch("web4agent.ddg_reader.search_ddg", AsyncMock(return_value=hits)):
+            with patch("web4agent.agent.read_many", AsyncMock(return_value=[page])):
+                from web4agent.agent import agent_search
+                result = await agent_search("python")
+        assert result["elapsed_ms"] >= 0

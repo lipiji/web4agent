@@ -198,3 +198,42 @@ class TestExtractTextBs4Exceptions:
             from web4agent.utils import extract_text_bs4
             result = extract_text_bs4("<html><body><p>text</p></body></html>")
         assert result is None
+
+
+class TestExtractTitleBs4Fallbacks:
+    def test_og_title_fallback(self):
+        html = '<html><head><meta property="og:title" content="OG Title"/></head></html>'
+        result = extract_title_bs4(html)
+        assert result == "OG Title"
+
+    def test_twitter_title_fallback(self):
+        html = '<html><head><meta name="twitter:title" content="Tweet Title"/></head></html>'
+        result = extract_title_bs4(html)
+        assert result == "Tweet Title"
+
+    def test_h1_fallback(self):
+        html = "<html><body><h1>Main Heading</h1><p>content</p></body></html>"
+        result = extract_title_bs4(html)
+        assert result == "Main Heading"
+
+
+class TestTruncateNaturalBoundary:
+    def test_cuts_at_sentence_boundary(self):
+        text = ("First sentence. " * 10).strip()
+        result = truncate(text, 50)
+        assert result is not None
+        assert "truncated" in result
+
+    def test_cuts_at_newline_boundary(self):
+        text = "Line one\nLine two\nLine three\nLine four\nLine five\nLine six\n" * 3
+        result = truncate(text, 60)
+        assert result is not None
+        assert "truncated" in result
+
+
+class TestHtmlToMarkdownBs4Inner:
+    def test_markdownify_still_runs_when_bs4_inner_fails(self):
+        with patch("bs4.BeautifulSoup", side_effect=Exception("bs4 broke")):
+            result = html_to_markdown("<h1>Title</h1><p>Text here</p>")
+        assert result is not None
+        assert "Title" in result or "Text" in result

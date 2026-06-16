@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -308,3 +309,51 @@ class TestRunSearch:
             extract_concurrency=3,
             instance=None,
         )
+
+
+# ── main() dispatch ─────────────────────────────────────────────────────────────
+
+
+def _make_args(command: str) -> MagicMock:
+    args = MagicMock()
+    args.command = command
+    return args
+
+
+class TestMain:
+    def _run_main_with_command(self, command: str, exit_code: int = 0):
+        from web4agent.cli import main
+        args = _make_args(command)
+        with patch("web4agent.cli._build_parser") as mock_parser:
+            mock_parser.return_value.parse_args.return_value = args
+            with patch("web4agent.cli.asyncio.run", return_value=exit_code):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+        return exc_info.value.code
+
+    def test_dispatches_read_command(self):
+        code = self._run_main_with_command("read", exit_code=0)
+        assert code == 0
+
+    def test_dispatches_many_command(self):
+        code = self._run_main_with_command("many", exit_code=0)
+        assert code == 0
+
+    def test_dispatches_links_command(self):
+        code = self._run_main_with_command("links", exit_code=0)
+        assert code == 0
+
+    def test_dispatches_search_command(self):
+        code = self._run_main_with_command("search", exit_code=0)
+        assert code == 0
+
+    def test_unsupported_command_calls_parser_error(self):
+        from web4agent.cli import main
+        args = _make_args("unknown_cmd")
+        with patch("web4agent.cli._build_parser") as mock_parser:
+            mock_parser.return_value.parse_args.return_value = args
+            mock_parser.return_value.error = MagicMock(side_effect=SystemExit(2))
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 2
+        mock_parser.return_value.error.assert_called_once()
