@@ -19,6 +19,7 @@
 | `discover_links` | Extract, normalize, and deduplicate hrefs |
 | `agent_read_url` | Single-URL fetch returning a slim LLM-ready dict |
 | `agent_read_urls` | Batch fetch with summary stats for LLM context |
+| `agent_search` / `search_searx` / `search_ddg` | Free web search (DDG primary, SearXNG fallback) + full-page extraction — Tavily-equivalent, no API key |
 | `run_doctor` | Diagnose optional deps, upstream connectivity, circuit-breaker state |
 | FastAPI server | Optional HTTP API (`/read`, `/read_many`, `/discover_links`) |
 
@@ -76,6 +77,9 @@ web4agent many https://example.com https://python.org --concurrency 5
 
 # Extract links
 web4agent links https://docs.python.org/3/ --same-domain --max-links 30
+
+# Search the web and extract full content for each result (free, no API key)
+web4agent search "rust async runtime comparison" --max-results 5
 
 # Check optional deps, upstream connectivity, and circuit-breaker state
 web4agent doctor
@@ -168,6 +172,23 @@ async def main():
 asyncio.run(main())
 ```
 
+### Search (free Tavily equivalent)
+
+```python
+import asyncio
+from web4agent import agent_search
+
+async def main():
+    # Searches DuckDuckGo first, falls back to SearXNG, then extracts
+    # full page content for every hit.
+    result = await agent_search("rust async runtime comparison", max_results=5)
+    print(f"{result['extracted']}/{result['hits']} pages extracted via {result['search_backend']}")
+    for r in result["results"]:
+        print(r["url"], r["title"])
+
+asyncio.run(main())
+```
+
 > Full working examples: [`examples/example.py`](examples/example.py)
 
 ---
@@ -179,7 +200,9 @@ asyncio.run(main())
 | `fast` | httpx + trafilatura (+ BS4 fallback) | Static pages, high concurrency |
 | `crawl4ai` | Crawl4AI `AsyncWebCrawler` | Docs, structured Markdown output |
 | `browser` | Playwright headless Chromium | JS-heavy SPAs, lazy-loaded content |
-| `auto` | Degrades: fast → crawl4ai → browser | Unknown pages |
+| `wayback` | archive.org snapshot | Sites blocking direct access |
+| `ddg` | DuckDuckGo cached snippet | Last-resort fallback, no API key |
+| `auto` | Degrades: fast → crawl4ai → browser → wayback → ddg (extended fallbacks toggle via `WRT_EXTENDED_FALLBACKS`) | Unknown pages |
 
 **Auto-degradation** triggers when:
 - HTTP status ≥ 400
@@ -227,6 +250,7 @@ Set via environment variables (or a `.env` file):
 | `WRT_USER_AGENT` | Chrome 124 | User-Agent header string |
 | `WRT_HEALTH_FAILURE_THRESHOLD` | `3` | Consecutive failures before a fallback tier is circuit-broken |
 | `WRT_HEALTH_COOLDOWN_SECONDS` | `60` | Cooldown before a circuit-broken tier is retried |
+| `WRT_EXTENDED_FALLBACKS` | `true` | Enable the `wayback` / `ddg` tiers in the `auto` chain |
 
 ---
 
