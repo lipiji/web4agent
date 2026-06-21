@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web4agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "Free, open-source, async-first web scraping toolkit for LLM agents"
 readme = "README.md"
 license = { text = "MIT" }
