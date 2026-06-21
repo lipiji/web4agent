@@ -38,3 +38,9 @@ USER_AGENT: str = os.environ.get(
 AGENT_MAX_CONTENT_CHARS: int = _env_int("WRT_AGENT_MAX_CONTENT_CHARS", 8000)
 
 USE_EXTENDED_FALLBACKS: bool = _env_bool("WRT_EXTENDED_FALLBACKS", True)
+
+# Circuit breaker for the auto-degradation chain: a strategy that fails this
+# many times in a row is skipped for HEALTH_COOLDOWN_SECONDS instead of being
+# retried on every call.
+HEALTH_FAILURE_THRESHOLD: int = _env_int("WRT_HEALTH_FAILURE_THRESHOLD", 3)
+HEALTH_COOLDOWN_SECONDS: int = _env_int("WRT_HEALTH_COOLDOWN_SECONDS", 60)

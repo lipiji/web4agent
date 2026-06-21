@@ -431,6 +431,147 @@ class TestExtendedFallbackChain:
 
 # ── USE_EXTENDED_FALLBACKS=False ──────────────────────────────────────────────
 
+class TestCircuitBreakerIntegration:
+    @pytest.mark.asyncio
+    async def test_repeated_crawl4ai_failures_open_breaker(self):
+        from web4agent.health import default_tracker
+
+        fail_fast = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="fast", success=False),
+        ])
+        fail_c4ai = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="crawl4ai", success=False),
+        ])
+        fail_browser = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="browser", success=False),
+        ])
+        fail_wayback = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="wayback", success=False),
+        ])
+        fail_ddg = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="ddg", success=False),
+        ])
+        with (
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail_fast)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=fail_c4ai)) as mock_c4ai,
+            patch("web4agent.router.read_browser", AsyncMock(return_value=fail_browser)),
+            patch("web4agent.router.read_wayback", AsyncMock(return_value=fail_wayback)),
+            patch("web4agent.router.read_ddg", AsyncMock(return_value=fail_ddg)),
+        ):
+            from web4agent.router import read_url
+            for _ in range(3):
+                await read_url("https://example.com", strategy="auto")
+
+            assert default_tracker.is_available("crawl4ai") is False
+            calls_before = mock_c4ai.call_count
+
+            # Breaker is open: crawl4ai should be skipped on the next auto call.
+            await read_url("https://example.com", strategy="auto")
+            assert mock_c4ai.call_count == calls_before
+
+    @pytest.mark.asyncio
+    async def test_skipped_strategy_recorded_as_failed_attempt(self):
+        from web4agent.health import default_tracker
+
+        default_tracker.mark_failure("crawl4ai")
+        default_tracker.mark_failure("crawl4ai")
+        default_tracker.mark_failure("crawl4ai")
+        assert default_tracker.is_available("crawl4ai") is False
+
+        fail_fast = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="fast", success=False),
+        ])
+        good_browser = _make_result(
+            text="A" * 500, success=True, strategy_used="browser", attempts=[
+                FetchAttempt(strategy="browser", success=True),
+            ],
+        )
+        with (
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail_fast)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock()) as mock_c4ai,
+            patch("web4agent.router.read_browser", AsyncMock(return_value=good_browser)),
+        ):
+            from web4agent.router import read_url
+            result = await read_url("https://example.com", strategy="auto")
+
+        mock_c4ai.assert_not_called()
+        skipped = next(a for a in result.attempts if a.strategy == "crawl4ai")
+        assert skipped.success is False
+        assert "circuit breaker" in skipped.error
+
+    @pytest.mark.asyncio
+    async def test_success_resets_breaker(self):
+        from web4agent.health import default_tracker
+
+        default_tracker.mark_failure("crawl4ai")
+        default_tracker.mark_failure("crawl4ai")
+
+        fail_fast = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="fast", success=False),
+        ])
+        good_c4ai = _make_result(
+            text="A" * 500, success=True, strategy_used="crawl4ai", attempts=[
+                FetchAttempt(strategy="crawl4ai", success=True),
+            ],
+        )
+        with (
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail_fast)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=good_c4ai)),
+        ):
+            from web4agent.router import read_url
+            await read_url("https://example.com", strategy="auto")
+
+        assert default_tracker._strategies["crawl4ai"].failures == 0
+
+    @pytest.mark.asyncio
+    async def test_fast_tier_also_goes_through_breaker(self):
+        """fast is the first hop but should still be circuit-broken on repeated outages."""
+        from web4agent.health import default_tracker
+
+        fail_fast = _make_result(text="x", success=False, attempts=[
+            FetchAttempt(strategy="fast", success=False),
+        ])
+        good_c4ai = _make_result(
+            text="A" * 500, success=True, strategy_used="crawl4ai", attempts=[
+                FetchAttempt(strategy="crawl4ai", success=True),
+            ],
+        )
+        with (
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail_fast)),
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=good_c4ai)),
+        ):
+            from web4agent.router import read_url
+            for _ in range(3):
+                await read_url("https://example.com", strategy="auto")
+
+        assert default_tracker.is_available("fast") is False
+        with (
+            patch("web4agent.router.read_fast", AsyncMock(return_value=fail_fast)) as mock_fast2,
+            patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=good_c4ai)),
+        ):
+            from web4agent.router import read_url
+            result = await read_url("https://example.com", strategy="auto")
+
+        mock_fast2.assert_not_called()
+        assert result.success is True
+        assert result.strategy_used == "crawl4ai"
+
+    @pytest.mark.asyncio
+    async def test_explicit_strategy_bypasses_breaker(self):
+        """Direct strategy selection (non-auto) must never be skipped."""
+        from web4agent.health import default_tracker
+
+        for _ in range(5):
+            default_tracker.mark_failure("crawl4ai")
+        assert default_tracker.is_available("crawl4ai") is False
+
+        good = _make_result(strategy_used="crawl4ai")
+        with patch("web4agent.router.read_crawl4ai", AsyncMock(return_value=good)) as mock_c4ai:
+            from web4agent.router import read_url
+            await read_url("https://example.com", strategy="crawl4ai")
+        mock_c4ai.assert_called_once()
+
+
 class TestExtendedFallbacksDisabled:
     def _make_fail(self, strategy: str) -> WebReadResult:
         return _make_result(

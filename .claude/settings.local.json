@@ -7,7 +7,15 @@
       "Bash(sed -i -e s/web-retrieval-toolkit/webweb/g -e s/web_retrieval_toolkit/webweb/g -e 's/Web Retrieval Toolkit/webweb/g' README.md .env.example)",
       "Bash(pip install:*)",
       "Bash(python -c \"import webweb; print\\('OK:', webweb.__all__\\)\")",
-      "Bash(python -m pytest tests/ -v)"
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python example.py)",
+      "Bash(ls E:/Workspace/webweb/example*)",
+      "Bash(mv E:/Workspace/webweb/example.py E:/Workspace/webweb/examples/example.py)",
+      "Bash(rm E:/Workspace/webweb/examples/read_many.py E:/Workspace/webweb/examples/read_one.py)",
+      "Bash(python -m pytest tests/test_wayback_reader.py tests/test_ddg_reader.py tests/test_router.py -v --tb=short)",
+      "Bash(python -m pytest --tb=short)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

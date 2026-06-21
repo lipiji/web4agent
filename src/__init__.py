@@ -9,7 +9,9 @@ from .batch import read_many
 from .browser import read_browser
 from .crawl4ai_reader import read_crawl4ai
 from .ddg_reader import read_ddg, search_ddg
+from .doctor import run_doctor
 from .fast import read_fast
+from .health import StrategyHealthTracker
 from .links import discover_links
 from .models import FetchAttempt, WebReadResult
 from .proxy import ProxyRotator
@@ -32,7 +34,9 @@ __all__ = [
     "agent_read_urls",
     "agent_search",
     "search_ddg",
+    "run_doctor",
     "WebReadResult",
     "FetchAttempt",
     "ProxyRotator",
+    "StrategyHealthTracker",
 ]

@@ -71,7 +71,7 @@ async def read_many(
             proxy = rotator.next() if rotator else None
             try:
                 result = await read_url(url, strategy=strategy, proxy=proxy)
-                if proxy:
+                if rotator and proxy:
                     if result.success:
                         rotator.mark_success(proxy)
                     else:

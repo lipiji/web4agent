@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from . import agent_read_url, agent_read_urls, agent_search, discover_links
+from .doctor import format_report, run_doctor
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -78,6 +79,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Concurrent extractions (default: 5)",
     )
 
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Diagnose optional dependencies, connectivity, and circuit-breaker state"
+    )
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the raw diagnostic report as JSON instead of a human-readable summary",
+    )
+
     links_parser = subparsers.add_parser("links", help="Extract links from one URL")
     links_parser.add_argument("url", help="Target URL")
     links_parser.add_argument(
@@ -124,6 +134,15 @@ async def _run_many(args: argparse.Namespace) -> int:
     return 0 if summary.get("failed", 0) == 0 else 1
 
 
+async def _run_doctor(args: argparse.Namespace) -> int:
+    report = await run_doctor()
+    if args.json:
+        _print_json(report)
+    else:
+        print(format_report(report))
+    return 0
+
+
 async def _run_links(args: argparse.Namespace) -> int:
     links = await discover_links(
         args.url,
@@ -159,6 +178,8 @@ def main() -> None:
         raise SystemExit(asyncio.run(_run_links(args)))
     if args.command == "search":
         raise SystemExit(asyncio.run(_run_search(args)))
+    if args.command == "doctor":
+        raise SystemExit(asyncio.run(_run_doctor(args)))
 
     parser.error(f"Unsupported command: {args.command}")
 

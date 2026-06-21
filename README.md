@@ -19,6 +19,7 @@
 | `discover_links` | Extract, normalize, and deduplicate hrefs |
 | `agent_read_url` | Single-URL fetch returning a slim LLM-ready dict |
 | `agent_read_urls` | Batch fetch with summary stats for LLM context |
+| `run_doctor` | Diagnose optional deps, upstream connectivity, circuit-breaker state |
 | FastAPI server | Optional HTTP API (`/read`, `/read_many`, `/discover_links`) |
 
 ---
@@ -75,6 +76,9 @@ web4agent many https://example.com https://python.org --concurrency 5
 
 # Extract links
 web4agent links https://docs.python.org/3/ --same-domain --max-links 30
+
+# Check optional deps, upstream connectivity, and circuit-breaker state
+web4agent doctor
 ```
 
 ### Python
@@ -221,6 +225,8 @@ Set via environment variables (or a `.env` file):
 | `WRT_MIN_TEXT_LENGTH` | `300` | Min chars to consider a fetch successful |
 | `WRT_AGENT_MAX_CONTENT_CHARS` | `8000` | Content truncation limit for agent output |
 | `WRT_USER_AGENT` | Chrome 124 | User-Agent header string |
+| `WRT_HEALTH_FAILURE_THRESHOLD` | `3` | Consecutive failures before a fallback tier is circuit-broken |
+| `WRT_HEALTH_COOLDOWN_SECONDS` | `60` | Cooldown before a circuit-broken tier is retried |
 
 ---
 

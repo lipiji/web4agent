@@ -9,8 +9,9 @@ from .config import MIN_TEXT_LENGTH, USE_EXTENDED_FALLBACKS
 from .crawl4ai_reader import read_crawl4ai
 from .ddg_reader import read_ddg
 from .fast import read_fast
-from .models import WebReadResult
-from .utils import looks_like_js_page
+from .health import default_tracker as health_tracker
+from .models import FetchAttempt, WebReadResult
+from .utils import looks_like_js_page, utc_now_iso
 from .wayback_reader import read_wayback
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,32 @@ def _should_degrade(result: WebReadResult) -> bool:
     if result.html and looks_like_js_page(result.html, result.text):
         return True
     return False
+
+
+def _skipped_result(url: str, strategy: str) -> WebReadResult:
+    """Stand-in result for a tier the circuit breaker is currently skipping."""
+    error = f"{strategy} skipped: circuit breaker open (repeated recent failures)"
+    return WebReadResult(
+        url=url,
+        success=False,
+        error=error,
+        strategy_used=strategy,
+        attempts=[FetchAttempt(strategy=strategy, success=False, error=error)],
+        fetched_at=utc_now_iso(),
+    )
+
+
+async def _try_strategy(name: str, call, url: str) -> WebReadResult:
+    """Run a fallback tier through the circuit breaker, recording the outcome."""
+    if not health_tracker.is_available(name):
+        logger.debug("auto strategy: %s skipped (circuit breaker open)", name)
+        return _skipped_result(url, name)
+    result = await call()
+    if result.success:
+        health_tracker.mark_success(name)
+    else:
+        health_tracker.mark_failure(name)
+    return result
 
 
 def _merge_attempts(base: WebReadResult, extra: WebReadResult) -> WebReadResult:
@@ -87,7 +114,7 @@ async def read_url(
 
     # ── auto ──────────────────────────────────────────────────────────────────
     logger.debug("auto strategy: trying fast for %s", url)
-    result = await read_fast(url, proxy=proxy)
+    result = await _try_strategy("fast", lambda: read_fast(url, proxy=proxy), url)
 
     if not _should_degrade(result):
         return result
@@ -98,14 +125,14 @@ async def read_url(
         result.success,
         url,
     )
-    c4ai_result = await read_crawl4ai(url)
+    c4ai_result = await _try_strategy("crawl4ai", lambda: read_crawl4ai(url), url)
     result = _merge_attempts(result, c4ai_result)
 
     if not _should_degrade(c4ai_result):
         return result
 
     logger.debug("auto strategy: crawl4ai insufficient, trying browser for %s", url)
-    browser_result = await read_browser(url, proxy=proxy)
+    browser_result = await _try_strategy("browser", lambda: read_browser(url, proxy=proxy), url)
     result = _merge_attempts(result, browser_result)
 
     if not _should_degrade(browser_result):
@@ -123,14 +150,14 @@ async def read_url(
 
     # ── extended fallbacks ────────────────────────────────────────────────────
     logger.debug("auto strategy: browser insufficient, trying wayback for %s", url)
-    wayback_result = await read_wayback(url)
+    wayback_result = await _try_strategy("wayback", lambda: read_wayback(url), url)
     result = _merge_attempts(result, wayback_result)
 
     if not _should_degrade(wayback_result):
         return result
 
     logger.debug("auto strategy: wayback unavailable, trying ddg for %s", url)
-    ddg_result = await read_ddg(url)
+    ddg_result = await _try_strategy("ddg", lambda: read_ddg(url), url)
     result = _merge_attempts(result, ddg_result)
 
     if ddg_result.success:

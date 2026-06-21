@@ -93,6 +93,17 @@ class TestBuildParser:
         args = _build_parser().parse_args(["links", "https://example.com", "--max-links", "20"])
         assert args.max_links == 20
 
+    def test_doctor_subcommand_exists(self):
+        from web4agent.cli import _build_parser
+        args = _build_parser().parse_args(["doctor"])
+        assert args.command == "doctor"
+        assert args.json is False
+
+    def test_doctor_json_flag(self):
+        from web4agent.cli import _build_parser
+        args = _build_parser().parse_args(["doctor", "--json"])
+        assert args.json is True
+
 
 # ── _run_read ──────────────────────────────────────────────────────────────────
 
@@ -311,6 +322,44 @@ class TestRunSearch:
         )
 
 
+# ── _run_doctor ──────────────────────────────────────────────────────────────────
+
+_DOCTOR_REPORT = {
+    "dependencies": [{"name": "crawl4ai", "module": "crawl4ai", "installed": True}],
+    "connectivity": [{"target": "wayback", "url": "https://archive.org", "reachable": True}],
+    "circuit_breakers": [],
+}
+
+
+class TestRunDoctor:
+    @pytest.mark.asyncio
+    async def test_returns_0(self, capsys):
+        args = argparse.Namespace(json=False)
+        with patch("web4agent.cli.run_doctor", AsyncMock(return_value=_DOCTOR_REPORT)):
+            from web4agent.cli import _run_doctor
+            code = await _run_doctor(args)
+        assert code == 0
+
+    @pytest.mark.asyncio
+    async def test_human_readable_by_default(self, capsys):
+        args = argparse.Namespace(json=False)
+        with patch("web4agent.cli.run_doctor", AsyncMock(return_value=_DOCTOR_REPORT)):
+            from web4agent.cli import _run_doctor
+            await _run_doctor(args)
+        out = capsys.readouterr().out
+        assert "Dependencies:" in out
+
+    @pytest.mark.asyncio
+    async def test_json_flag_prints_json(self, capsys):
+        args = argparse.Namespace(json=True)
+        with patch("web4agent.cli.run_doctor", AsyncMock(return_value=_DOCTOR_REPORT)):
+            from web4agent.cli import _run_doctor
+            await _run_doctor(args)
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert data == _DOCTOR_REPORT
+
+
 # ── main() dispatch ─────────────────────────────────────────────────────────────
 
 
@@ -345,6 +394,10 @@ class TestMain:
 
     def test_dispatches_search_command(self):
         code = self._run_main_with_command("search", exit_code=0)
+        assert code == 0
+
+    def test_dispatches_doctor_command(self):
+        code = self._run_main_with_command("doctor", exit_code=0)
         assert code == 0
 
     def test_unsupported_command_calls_parser_error(self):
