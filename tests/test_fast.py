@@ -128,6 +128,23 @@ class TestReadFast:
         assert result.status_code == 404
 
     @pytest.mark.asyncio
+    async def test_bad_status_sets_error_message(self):
+        """Regression: success=False from a bad status must not leave error=None."""
+        with _patch_fetch(html="<html><body>Service Unavailable</body></html>", status_code=503):
+            result = await read_fast("https://example.com/")
+        assert result.success is False
+        assert result.error == "HTTP 503"
+        assert result.attempts[0].error == "HTTP 503"
+
+    @pytest.mark.asyncio
+    async def test_empty_text_sets_error_message(self):
+        """Regression: success=False from empty extracted text must not leave error=None."""
+        with _patch_fetch(html="<html><body></body></html>", status_code=200):
+            result = await read_fast("https://example.com/")
+        if not result.success:
+            assert result.error == "No extractable text content"
+
+    @pytest.mark.asyncio
     async def test_exception_returns_error_result(self):
         with patch("web4agent.fast._curl_get", new=AsyncMock(side_effect=Exception("connection refused"))):
             with patch("web4agent.fast._httpx_get", new=AsyncMock(side_effect=Exception("connection refused"))):

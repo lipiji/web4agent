@@ -10,6 +10,7 @@ from .models import FetchAttempt, WebReadResult
 from .utils import (
     extract_text_bs4,
     extract_title_bs4,
+    fetch_failure_reason,
     html_to_markdown,
     utc_now_iso,
 )
@@ -150,6 +151,7 @@ async def read_fast(
 
         markdown = traf_markdown or (html_to_markdown(html) if html else None)
         success = status_code < 400 and bool(text)
+        error = None if success else fetch_failure_reason(status_code, text)
 
         return WebReadResult(
             url=url,
@@ -166,9 +168,11 @@ async def read_fast(
                     strategy="fast",
                     success=success,
                     status_code=status_code,
+                    error=error,
                     elapsed_ms=elapsed_ms,
                 )
             ],
+            error=error,
             fetched_at=fetched_at,
             elapsed_ms=elapsed_ms,
         )

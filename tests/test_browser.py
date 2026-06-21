@@ -115,6 +115,19 @@ class TestReadBrowser:
         mock_context.close.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_bad_status_sets_error_message(self):
+        """Regression: success=False from a bad status must not leave error=None."""
+        mock_browser, _, _ = _make_playwright_mocks(status=503)
+
+        with patch("web4agent.browser._manager._ensure_browser", AsyncMock(return_value=mock_browser)):
+            from web4agent.browser import read_browser
+            result = await read_browser("https://example.com/")
+
+        assert result.success is False
+        assert result.error == "HTTP 503"
+        assert result.attempts[0].error == "HTTP 503"
+
+    @pytest.mark.asyncio
     async def test_page_closed_even_on_error(self):
         mock_browser, mock_context, mock_page = _make_playwright_mocks()
         mock_page.goto = AsyncMock(side_effect=Exception("navigation failed"))

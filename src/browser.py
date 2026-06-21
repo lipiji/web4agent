@@ -10,7 +10,7 @@ from typing import Any
 
 from .config import BROWSER_CONCURRENCY, DEFAULT_TIMEOUT
 from .models import FetchAttempt, WebReadResult
-from .utils import extract_text_bs4, extract_title_bs4, html_to_markdown, utc_now_iso
+from .utils import extract_text_bs4, extract_title_bs4, fetch_failure_reason, html_to_markdown, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +247,7 @@ async def read_browser(
                     ).decode()
 
                 success = bool(text) and (status_code is None or status_code < 400)
+                error = None if success else fetch_failure_reason(status_code, text)
 
                 return WebReadResult(
                     url=url,
@@ -263,9 +264,11 @@ async def read_browser(
                             strategy="browser",
                             success=success,
                             status_code=status_code,
+                            error=error,
                             elapsed_ms=elapsed_ms,
                         )
                     ],
+                    error=error,
                     fetched_at=fetched_at,
                     elapsed_ms=elapsed_ms,
                     metadata=metadata,

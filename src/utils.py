@@ -16,6 +16,19 @@ def utc_now_iso() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
+def fetch_failure_reason(status_code: int | None, text: str | None) -> str | None:
+    """
+    Describe why a no-exception fetch is being marked unsuccessful.
+
+    Returns None when the fetch should be considered successful.
+    """
+    if status_code is not None and status_code >= 400:
+        return f"HTTP {status_code}"
+    if not text:
+        return "No extractable text content"
+    return None
+
+
 def looks_like_js_page(html: str, text: str | None) -> bool:
     """Heuristic: returns True if page content looks JS-rendered / mostly empty."""
     if not text or len(text.strip()) < 100:

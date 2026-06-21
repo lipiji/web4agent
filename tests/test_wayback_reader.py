@@ -248,6 +248,15 @@ class TestReadWayback:
             result = await read_wayback("http://example.com/")
         assert result.status_code == 200
 
+    @pytest.mark.asyncio
+    async def test_bad_status_sets_error_message(self):
+        """Regression: success=False from a bad status must not leave error=None."""
+        with _patch_wayback_client(_make_cdx_response(), _make_fetch_response(status_code=503)):
+            result = await read_wayback("http://example.com/")
+        assert result.success is False
+        assert result.error == "HTTP 503"
+        assert result.attempts[0].error == "HTTP 503"
+
     # ── failure: no snapshot ──────────────────────────────────────────────────
 
     @pytest.mark.asyncio

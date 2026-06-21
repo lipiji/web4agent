@@ -6,6 +6,7 @@ import pytest
 from web4agent.utils import (
     extract_text_bs4,
     extract_title_bs4,
+    fetch_failure_reason,
     html_to_markdown,
     looks_like_js_page,
     truncate,
@@ -30,6 +31,31 @@ class TestUtcNowIso:
         # Should parse without error
         dt = datetime.datetime.fromisoformat(result)
         assert dt.tzinfo is not None
+
+
+# ── fetch_failure_reason ───────────────────────────────────────────────────────
+
+class TestFetchFailureReason:
+    def test_bad_status_returns_http_reason(self):
+        assert fetch_failure_reason(503, "some text") == "HTTP 503"
+
+    def test_404_returns_http_reason_even_with_text(self):
+        assert fetch_failure_reason(404, "Not Found page body") == "HTTP 404"
+
+    def test_empty_text_with_good_status_returns_no_content_reason(self):
+        assert fetch_failure_reason(200, "") == "No extractable text content"
+
+    def test_none_text_with_good_status_returns_no_content_reason(self):
+        assert fetch_failure_reason(200, None) == "No extractable text content"
+
+    def test_good_status_with_text_returns_none(self):
+        assert fetch_failure_reason(200, "plenty of content") is None
+
+    def test_none_status_with_text_returns_none(self):
+        assert fetch_failure_reason(None, "plenty of content") is None
+
+    def test_status_just_under_400_is_not_a_failure(self):
+        assert fetch_failure_reason(399, "content") is None
 
 
 # ── truncate ───────────────────────────────────────────────────────────────────
